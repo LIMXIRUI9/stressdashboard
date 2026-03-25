@@ -1,457 +1,263 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import shap
+import joblib
+import pickle
 import plotly.express as px
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
 # Page configuration
 st.set_page_config(page_title="XAI Stress Detection", layout="wide")
 
-# Custom CSS for better styling
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #4CAF50;
-        text-align: center;
-    }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #666;
-        text-align: center;
-    }
-    .prediction-box {
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        margin: 10px 0;
-    }
+    .main-header { font-size: 2.5rem; color: #4CAF50; text-align: center; }
+    .prediction-low { background-color: #d4edda; padding: 20px; border-radius: 10px; text-align: center; }
+    .prediction-moderate { background-color: #fff3cd; padding: 20px; border-radius: 10px; text-align: center; }
+    .prediction-high { background-color: #f8d7da; padding: 20px; border-radius: 10px; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# Title and description
-st.markdown('<h1 class="main-header">🧠 XAI Stress Detection Dashboard</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Powered by AdaBoost & XAI</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🧠 XAI Stress Detection System</h1>', unsafe_allow_html=True)
 st.markdown("---")
 
-# Initialize session state for model and data
-if 'model' not in st.session_state:
-    st.session_state.model = None
-if 'scaler' not in st.session_state:
-    st.session_state.scaler = None
-if 'feature_names' not in st.session_state:
-    st.session_state.feature_names = None
-if 'label_encoder' not in st.session_state:
-    st.session_state.label_encoder = None
+# ==================== LOAD MODELS ====================
+@st.cache_resource
+def load_models():
+    """Load all trained models and SHAP files"""
+    try:
+        model = joblib.load('models/adaboost_model.pkl')
+        scaler = joblib.load('models/scaler.pkl')
+        label_encoder = joblib.load('models/label_encoder.pkl')
+        
+        with open('models/feature_names.pkl', 'rb') as f:
+            feature_names = pickle.load(f)
+        
+        # Load SHAP values
+        with open('models/shap_values.pkl', 'rb') as f:
+            shap_values = pickle.load(f)
+        
+        # Load global importance
+        importance_df = pd.read_csv('models/shap_global_importance.csv')
+        
+        return model, scaler, label_encoder, feature_names, shap_values, importance_df
+    except Exception as e:
+        st.error(f"Error loading: {str(e)}")
+        st.info("Please ensure all files are in 'models/' folder")
+        return None, None, None, None, None, None
 
-# Sidebar navigation
+# Load everything
+model, scaler, label_encoder, feature_names, shap_values, importance_df = load_models()
+
+# ==================== PREDICTION FUNCTION ====================
+def predict_stress(features_df):
+    if model is None:
+        return None, None
+    try:
+        X = features_df[feature_names].copy()
+        X_scaled = scaler.transform(X)
+        predictions = model.predict(X_scaled)
+        probabilities = model.predict_proba(X_scaled)
+        stress_levels = label_encoder.inverse_transform(predictions)
+        return stress_levels, probabilities
+    except Exception as e:
+        st.error(f"Prediction error: {str(e)}")
+        return None, None
+
+# ==================== SIDEBAR ====================
 page = st.sidebar.radio(
     "Navigation",
-    ["📊 Dashboard Overview", "📁 Upload & Train Model", "🧪 Student Self-Test", "🔍 XAI Explanations"]
+    ["🏠 Dashboard Overview", "📊 Student Self-Test", "🔍 SHAP Explanations"]
 )
 
-# Sidebar info
-st.sidebar.markdown("---")
-st.sidebar.info(
-    "**How it works:**\n"
-    "1. Upload your stress dataset\n"
-    "2. Train AdaBoost model\n"
-    "3. Students can self-test or upload data\n"
-    "4. Get predictions with SHAP explanations"
-)
-
-# Function to generate sample dataset
-def generate_sample_data(n_samples=500):
-    np.random.seed(42)
-    
-    # Generate synthetic stress-related features
-    heart_rate = np.random.normal(75, 15, n_samples)
-    sleep_hours = np.random.normal(7, 1.5, n_samples)
-    physical_activity = np.random.normal(5, 2, n_samples)
-    study_hours = np.random.normal(4, 2, n_samples)
-    social_interaction = np.random.normal(6, 2, n_samples)
-    workload = np.random.normal(5, 2, n_samples)
-    
-    # Generate stress labels based on rules
-    stress_score = (heart_rate > 85).astype(int) * 0.3 + \
-                   (sleep_hours < 6).astype(int) * 0.3 + \
-                   (physical_activity < 3).astype(int) * 0.2 + \
-                   (study_hours > 6).astype(int) * 0.1 + \
-                   (workload > 6).astype(int) * 0.1
-    
-    stress_level = np.where(stress_score > 0.5, "High", 
-                           np.where(stress_score > 0.2, "Moderate", "Low"))
-    
-    df = pd.DataFrame({
-        'Heart_Rate': heart_rate,
-        'Sleep_Hours': sleep_hours,
-        'Physical_Activity': physical_activity,
-        'Study_Hours': study_hours,
-        'Social_Interaction': social_interaction,
-        'Workload': workload,
-        'Stress_Level': stress_level
-    })
-    
-    return df
-
-# Function to train model
-def train_model(df, target_col='Stress_Level'):
-    try:
-        # Prepare features and target
-        feature_cols = [col for col in df.columns if col != target_col]
-        X = df[feature_cols]
-        y = df[target_col]
-        
-        # Encode target
-        le = LabelEncoder()
-        y_encoded = le.fit_transform(y)
-        
-        # Handle categorical features
-        X_processed = X.copy()
-        categorical_cols = X_processed.select_dtypes(include=['object']).columns
-        for col in categorical_cols:
-            X_processed[col] = LabelEncoder().fit_transform(X_processed[col])
-        
-        # Scale features
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X_processed)
-        
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
-        )
-        
-        # Train AdaBoost
-        model = AdaBoostClassifier(n_estimators=100, learning_rate=1.0, random_state=42)
-        model.fit(X_train, y_train)
-        
-        # Evaluate
-        y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        
-        # Store in session state
-        st.session_state.model = model
-        st.session_state.scaler = scaler
-        st.session_state.label_encoder = le
-        st.session_state.feature_names = feature_cols
-        st.session_state.X_train = X_train
-        st.session_state.X_test = X_test
-        st.session_state.y_test = y_test
-        st.session_state.y_pred = y_pred
-        st.session_state.y_train = y_train
-        
-        return model, accuracy, le.classes_
-    
-    except Exception as e:
-        st.error(f"Error training model: {str(e)}")
-        return None, 0, None
-
-# Function to predict stress
-def predict_stress(features_df):
-    if st.session_state.model is None:
-        return None, None
-    
-    try:
-        # Process features
-        X = features_df[st.session_state.feature_names].copy()
-        
-        # Handle categorical columns
-        for col in X.select_dtypes(include=['object']).columns:
-            X[col] = LabelEncoder().fit_transform(X[col])
-        
-        # Scale
-        X_scaled = st.session_state.scaler.transform(X)
-        
-        # Predict
-        predictions = st.session_state.model.predict(X_scaled)
-        probabilities = st.session_state.model.predict_proba(X_scaled)
-        
-        # Decode predictions
-        stress_levels = st.session_state.label_encoder.inverse_transform(predictions)
-        
-        return stress_levels, probabilities
-    
-    except Exception as e:
-        st.error(f"Error making prediction: {str(e)}")
-        return None, None
-
-# Dashboard Overview Page
-if page == "📊 Dashboard Overview":
+# ==================== PAGE 1: OVERVIEW ====================
+if page == "🏠 Dashboard Overview":
     st.header("📊 Dashboard Overview")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📈 Model Performance")
-        if st.session_state.model is not None:
-            accuracy = accuracy_score(st.session_state.y_test, st.session_state.y_pred)
-            st.metric("Model Accuracy", f"{accuracy:.2%}")
-            
-            # Confusion Matrix
-            cm = confusion_matrix(st.session_state.y_test, st.session_state.y_pred)
-            fig, ax = plt.subplots(figsize=(6, 4))
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                        xticklabels=st.session_state.label_encoder.classes_,
-                        yticklabels=st.session_state.label_encoder.classes_, ax=ax)
-            ax.set_title('Confusion Matrix')
-            ax.set_xlabel('Predicted')
-            ax.set_ylabel('Actual')
-            st.pyplot(fig)
-        else:
-            st.info("No model trained yet. Go to 'Upload & Train Model' to get started.")
+        if model is not None:
+            st.success("✅ AdaBoost Model Loaded Successfully!")
+            st.write(f"**Number of features:** {len(feature_names)}")
+            if label_encoder is not None:
+                st.write(f"**Stress levels:** {', '.join(label_encoder.classes_)}")
     
     with col2:
-        st.subheader("📊 Sample Data Preview")
-        if 'data' in st.session_state:
-            st.dataframe(st.session_state.data.head())
-        else:
-            st.info("No data loaded. Upload your dataset or use sample data.")
+        if importance_df is not None:
+            st.subheader("📊 Global Feature Importance (SHAP)")
+            fig = px.bar(importance_df.head(10), 
+                         x='Importance', y='Feature', 
+                         orientation='h',
+                         title='Top 10 Features by SHAP Importance',
+                         color='Importance', 
+                         color_continuous_scale='Blues')
+            st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
-    st.subheader("🎯 Key Features")
-    
-    feature_importance = st.session_state.model.feature_importances_ if st.session_state.model is not None else None
-    if feature_importance is not None:
-        importance_df = pd.DataFrame({
-            'Feature': st.session_state.feature_names,
-            'Importance': feature_importance
-        }).sort_values('Importance', ascending=True)
-        
-        fig = px.bar(importance_df, x='Importance', y='Feature', orientation='h',
-                     title='Feature Importance (AdaBoost)',
-                     color='Importance', color_continuous_scale='Blues')
-        st.plotly_chart(fig, use_container_width=True)
+    st.subheader("📋 Features Used in Model")
+    if feature_names:
+        cols = st.columns(3)
+        for idx, feature in enumerate(feature_names):
+            with cols[idx % 3]:
+                st.write(f"- {feature}")
 
-# Upload & Train Model Page
-elif page == "📁 Upload & Train Model":
-    st.header("📁 Upload Dataset & Train Model")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader("Upload CSV File")
-        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-        
-        if st.button("Use Sample Dataset"):
-            df = generate_sample_data()
-            st.session_state.data = df
-            st.success("Sample dataset loaded!")
-            st.dataframe(df.head())
-    
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        st.session_state.data = df
-        st.success("Dataset loaded successfully!")
-        st.dataframe(df.head())
-        
-        # Show dataset info
-        st.subheader("Dataset Information")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Rows", df.shape[0])
-        with col2:
-            st.metric("Columns", df.shape[1])
-        with col3:
-            st.metric("Missing Values", df.isnull().sum().sum())
-    
-    with col2:
-        st.subheader("Train Model")
-        if 'data' in st.session_state:
-            target_col = st.selectbox("Select Target Column", 
-                                      st.session_state.data.columns,
-                                      index=len(st.session_state.data.columns)-1 if len(st.session_state.data.columns) > 0 else 0)
-            
-            if st.button("🚀 Train AdaBoost Model"):
-                with st.spinner("Training model..."):
-                    model, accuracy, classes = train_model(st.session_state.data, target_col)
-                    if model is not None:
-                        st.success(f"✅ Model trained successfully! Accuracy: {accuracy:.2%}")
-                        st.write(f"Stress levels: {', '.join(classes)}")
-        else:
-            st.info("Please upload a dataset first or use sample data.")
-
-# Student Self-Test Page
-elif page == "🧪 Student Self-Test":
+# ==================== PAGE 2: STUDENT SELF-TEST ====================
+elif page == "📊 Student Self-Test":
     st.header("🧪 Student Self-Test")
-    st.markdown("Answer the following questions to assess your stress level")
+    st.markdown("Enter student data to predict stress level")
     
-    if st.session_state.model is not None:
+    if model is not None:
         col1, col2 = st.columns(2)
+        user_input = {}
         
+        # Feature ranges (adjust based on your dataset)
+        feature_ranges = {
+            'Heart_Rate': (60, 120, 75),
+            'Sleep_Hours': (0, 12, 7),
+            'Physical_Activity': (0, 15, 5),
+            'Study_Hours': (0, 12, 4),
+            'Social_Interaction': (0, 20, 6),
+            'Workload': (1, 10, 5)
+        }
+        
+        # Create input fields
         with col1:
-            heart_rate = st.slider("Heart Rate (bpm)", 60, 120, 80)
-            sleep_hours = st.slider("Sleep Hours (per day)", 0, 12, 7)
-            physical_activity = st.slider("Physical Activity (hours/week)", 0, 15, 5)
-            study_hours = st.slider("Study Hours (per day)", 0, 12, 4)
+            for feature in feature_names[:len(feature_names)//2]:
+                if feature in feature_ranges:
+                    min_val, max_val, default = feature_ranges[feature]
+                    user_input[feature] = st.slider(
+                        feature.replace('_', ' '), 
+                        min_val, max_val, default
+                    )
+                else:
+                    user_input[feature] = st.number_input(feature, value=0.0)
         
         with col2:
-            social_interaction = st.slider("Social Interaction (hours/week)", 0, 20, 6)
-            workload = st.slider("Perceived Workload (1-10)", 1, 10, 5)
-            stress_history = st.selectbox("Past Stress History", ["Low", "Moderate", "High"])
+            for feature in feature_names[len(feature_names)//2:]:
+                if feature in feature_ranges:
+                    min_val, max_val, default = feature_ranges[feature]
+                    user_input[feature] = st.slider(
+                        feature.replace('_', ' '), 
+                        min_val, max_val, default
+                    )
+                else:
+                    user_input[feature] = st.number_input(feature, value=0.0)
         
-        # Create feature dataframe
-        test_data = pd.DataFrame({
-            'Heart_Rate': [heart_rate],
-            'Sleep_Hours': [sleep_hours],
-            'Physical_Activity': [physical_activity],
-            'Study_Hours': [study_hours],
-            'Social_Interaction': [social_interaction],
-            'Workload': [workload]
-        })
-        
-        if st.button("🔮 Predict My Stress Level", type="primary"):
-            with st.spinner("Analyzing..."):
-                prediction, probabilities = predict_stress(test_data)
+        if st.button("🔮 Predict Stress Level", type="primary"):
+            input_df = pd.DataFrame([user_input])
+            prediction, probabilities = predict_stress(input_df)
+            
+            if prediction is not None:
+                stress_level = prediction[0]
                 
-                if prediction is not None:
-                    st.markdown("---")
-                    st.subheader("📊 Your Results")
-                    
-                    # Display prediction
-                    stress_level = prediction[0]
-                    colors = {"Low": "green", "Moderate": "orange", "High": "red"}
-                    
+                # Display prediction
+                if stress_level == "Low":
                     st.markdown(f"""
-                    <div class="prediction-box" style="background-color: {colors[stress_level]}20;">
-                        <h2>Stress Level: <span style="color: {colors[stress_level]};">{stress_level}</span></h2>
+                    <div class="prediction-low">
+                        <h2>✅ Low Stress Level</h2>
+                        <p>The student appears to be managing stress well.</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    
-                    # Show probabilities
-                    prob_df = pd.DataFrame({
-                        'Stress Level': st.session_state.label_encoder.classes_,
-                        'Probability': probabilities[0] * 100
-                    })
-                    fig = px.bar(prob_df, x='Stress Level', y='Probability', 
-                                 title='Prediction Probabilities',
-                                 color='Stress Level',
-                                 color_discrete_map={'Low': 'green', 'Moderate': 'orange', 'High': 'red'})
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Recommendations
-                    st.subheader("💡 Recommendations")
-                    if stress_level == "High":
-                        st.warning("""
-                        - Consider reducing workload
-                        - Practice deep breathing exercises
-                        - Ensure adequate sleep (7-9 hours)
-                        - Seek support from counselors or trusted individuals
-                        """)
-                    elif stress_level == "Moderate":
-                        st.info("""
-                        - Take regular breaks during study sessions
-                        - Incorporate light exercise into your routine
-                        - Practice mindfulness or meditation
-                        - Maintain a balanced schedule
-                        """)
-                    else:
-                        st.success("""
-                        - Keep up the good habits!
-                        - Maintain regular exercise and sleep schedule
-                        - Continue monitoring stress levels
-                        """)
+                elif stress_level == "Moderate":
+                    st.markdown(f"""
+                    <div class="prediction-moderate">
+                        <h2>⚠️ Moderate Stress Level</h2>
+                        <p>Some stress indicators detected.</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="prediction-high">
+                        <h2>🔴 High Stress Level</h2>
+                        <p>Significant stress indicators detected.</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Show probabilities
+                prob_df = pd.DataFrame({
+                    'Stress Level': label_encoder.classes_,
+                    'Probability': probabilities[0] * 100
+                })
+                fig = px.bar(prob_df, x='Stress Level', y='Probability', 
+                             title='Prediction Confidence',
+                             color='Stress Level',
+                             color_discrete_map={'Low': 'green', 'Moderate': 'orange', 'High': 'red'})
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Recommendations
+                st.subheader("💡 Recommendations")
+                if stress_level == "High":
+                    st.warning("""
+                    - Reduce workload and take breaks
+                    - Ensure adequate sleep (7-9 hours)
+                    - Practice deep breathing exercises
+                    - Seek support from counselors
+                    """)
+                elif stress_level == "Moderate":
+                    st.info("""
+                    - Take regular breaks during study
+                    - Incorporate light exercise
+                    - Practice mindfulness
+                    """)
+                else:
+                    st.success("""
+                    - Maintain good habits
+                    - Continue regular exercise
+                    - Keep monitoring stress levels
+                    """)
     else:
-        st.warning("⚠️ No model trained yet. Please go to 'Upload & Train Model' to train a model first.")
-        if st.button("Train with Sample Data"):
-            df = generate_sample_data()
-            st.session_state.data = df
-            train_model(df)
+        st.warning("⚠️ Model not loaded. Please ensure all files are in 'models/' folder.")
 
-# XAI Explanations Page
-elif page == "🔍 XAI Explanations":
-    st.header("🔍 Explainable AI with SHAP")
-    st.markdown("Understand why the model made its predictions")
+# ==================== PAGE 3: SHAP EXPLANATIONS ====================
+elif page == "🔍 SHAP Explanations":
+    st.header("🔍 SHAP Explanations")
     
-    if st.session_state.model is not None:
-        st.subheader("How SHAP Works")
+    if importance_df is not None:
+        st.subheader("Global Feature Importance")
+        st.markdown("This shows which features most influence stress prediction across all students:")
+        
+        fig = px.bar(importance_df, 
+                     x='Importance', y='Feature', 
+                     orientation='h',
+                     title='SHAP Global Feature Importance',
+                     color='Importance', 
+                     color_continuous_scale='RdBu',
+                     height=500)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown("---")
+        st.subheader("📖 How to Interpret")
         st.markdown("""
-        **SHAP (SHapley Additive exPlanations)** explains predictions by showing:
-        - Which features contributed most to the prediction
-        - Whether each feature increased or decreased stress level
-        - The magnitude of each feature's impact
+        **SHAP values explain the model's predictions:**
+        - **Positive SHAP value** → Feature increases stress level
+        - **Negative SHAP value** → Feature decreases stress level
+        - **Larger magnitude** → Greater impact on prediction
+        
+        **Key Insights from your model:**
+        - Features with highest importance are the strongest predictors of stress
+        - Higher heart rate and lower sleep typically increase stress prediction
+        - Physical activity and social interaction help reduce stress
         """)
         
-        # Calculate SHAP values
-        with st.spinner("Calculating SHAP explanations..."):
-            # Create a SHAP explainer
-            explainer = shap.TreeExplainer(st.session_state.model)
-            
-            # Get sample for explanation
-            X_sample = st.session_state.X_test[:100]
-            shap_values = explainer.shap_values(X_sample)
-            
-            # Summary plot
-            st.subheader("Feature Impact Summary")
-            fig, ax = plt.subplots(figsize=(10, 6))
-            shap.summary_plot(shap_values, X_sample, 
-                             feature_names=st.session_state.feature_names,
-                             show=False)
-            st.pyplot(fig)
-            
-            st.markdown("---")
-            st.subheader("Interactive Prediction Explanation")
-            
-            # Let user input values for explanation
-            st.markdown("Enter values to see SHAP explanation for your prediction:")
-            
-            cols = st.columns(len(st.session_state.feature_names))
-            user_input = {}
-            
-            for idx, feature in enumerate(st.session_state.feature_names):
-                with cols[idx % len(cols)]:
-                    user_input[feature] = st.number_input(
-                        feature, 
-                        value=float(st.session_state.X_test[0][idx]) if len(st.session_state.X_test) > 0 else 0.0,
-                        key=f"shap_{feature}"
-                    )
-            
-            if st.button("Explain This Prediction"):
-                input_df = pd.DataFrame([user_input])
-                
-                # Scale input
-                input_scaled = st.session_state.scaler.transform(input_df)
-                
-                # Get prediction
-                pred = st.session_state.model.predict(input_scaled)[0]
-                pred_label = st.session_state.label_encoder.inverse_transform([pred])[0]
-                
-                st.info(f"Predicted Stress Level: **{pred_label}**")
-                
-                # Get SHAP explanation for this instance
-                shap_values_instance = explainer.shap_values(input_scaled)
-                
-                # Create force plot
-                st.subheader("SHAP Force Plot")
-                fig, ax = plt.subplots(figsize=(20, 3))
-                shap.force_plot(explainer.expected_value, shap_values_instance[0], 
-                               input_df, matplotlib=True, show=False)
-                st.pyplot(fig)
-                
-                # Feature contribution table
-                st.subheader("Feature Contributions")
-                contributions = pd.DataFrame({
-                    'Feature': st.session_state.feature_names,
-                    'SHAP Value': shap_values_instance[0]
-                }).sort_values('SHAP Value', key=abs, ascending=False)
-                
-                fig = px.bar(contributions, x='SHAP Value', y='Feature', orientation='h',
-                            title='Feature Contributions to Prediction',
-                            color='SHAP Value', color_continuous_scale='RdBu')
-                st.plotly_chart(fig, use_container_width=True)
+        st.markdown("---")
+        st.subheader("🔬 SHAP Summary Plot")
+        st.markdown("Distribution of SHAP values for each feature across the dataset:")
+        
+        # Create a sample summary visualization
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.barh(importance_df['Feature'][:10], importance_df['Importance'][:10], color='steelblue')
+        ax.set_xlabel('Mean |SHAP Value|')
+        ax.set_title('Feature Importance (Mean SHAP Values)')
+        st.pyplot(fig)
+        
     else:
-        st.warning("⚠️ No model trained yet. Please train a model first to see SHAP explanations.")
+        st.warning("⚠️ SHAP importance file not found. Please add 'shap_global_importance.csv' to models folder.")
 
-# Footer
+# ==================== FOOTER ====================
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666;">
-    <p>XAI Stress Detection System | Powered by AdaBoost & SHAP</p>
+    <p>FYP 2: XAI Stress Detection | AdaBoost + SHAP | Powered by Streamlit</p>
 </div>
 """, unsafe_allow_html=True)
