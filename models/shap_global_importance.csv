@@ -1,0 +1,26 @@
+Feature,Importance
+Do you face any sleep problems or difficulties falling asleep?,0.012
+Do you have trouble concentrating on your academic tasks?,0.0093
+Have you noticed a rapid heartbeat or palpitations?,0.0093
+Do you get irritated easily?,0.009
+Have you been dealing with anxiety or tension recently?.1,0.0066
+Is your working environment unpleasant or stressful?,0.006
+Academic and extracurricular activities conflicting for you?,0.0051
+Do you often feel lonely or isolated?,0.0046
+"Are you in competition with your peers, and does it affect you?",0.0045
+Have you been dealing with anxiety or tension recently?,0.0041
+Is your hostel or home environment causing you difficulties?,0.004
+Have you been feeling sadness or low mood?,0.0034
+Do you struggle to find time for relaxation and leisure activities?,0.0034
+Have you recently experienced stress in your life?,0.0031
+Have you gained/lost weight?,0.003
+Are you facing any difficulties with your professors or instructors?,0.0029
+Have you been experiencing any illness or health issues?,0.0026
+Do you lack confidence in your choice of academic subjects?,0.002
+Do you lack confidence in your academic performance?,0.0015
+Do you attend classes regularly?,0.0015
+Do you feel overwhelmed with your academic workload?,0.0015
+Do you find that your relationship often causes you stress?,0.0012
+Have you been getting headaches more often than usual?,0.0009
+Age,0.0009
+Gender,0.0004
