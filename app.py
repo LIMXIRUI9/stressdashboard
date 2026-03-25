@@ -18,7 +18,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<h1 class="main-header">🧠 XAI Stress Detection System</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🧠 XAI Stress Detection Dashboard</h1>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ==================== LOAD MODELS ====================
@@ -252,12 +252,12 @@ elif page == "🔍 SHAP Explanations":
         st.pyplot(fig)
         
     else:
-        st.warning("⚠️ SHAP importance file not found. Please add 'shap_global_importance.csv' to models folder.")
+        st.warning("⚠️ SHAP importance file not found. Please add the correct file to models folder.")
 
 # ==================== FOOTER ====================
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666;">
-    <p>FYP 2: XAI Stress Detection | AdaBoost + SHAP | Powered by Streamlit</p>
+    <p>XAI Stress Detection | AdaBoost + SHAP | Powered by Streamlit</p>
 </div>
 """, unsafe_allow_html=True)
