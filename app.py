@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# ==================== CSS STYLING DESIGN ====================
 st.markdown("""
 <style>
     .main-header {
@@ -86,6 +86,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+# ==================== END OF CSS STYLING DESIGN ====================
 
 # ==================== HELPER FUNCTION FOR LABEL ENCODER ====================
 def get_label_encoder_classes(encoder):
@@ -144,7 +145,7 @@ def validate_uploaded_files(model_file, scaler_file, label_encoder_file, feature
     
     return errors, warnings
 
-# ==================== SIDEBAR ====================
+# ================================= SIDEBAR =========================================
 with st.sidebar:
     st.image("https://i.pinimg.com/736x/ed/1c/2d/ed1c2d412a705ba463c49ad8f27ace89.jpg", width=200)
     st.markdown("# 🧠 XAI Stress Detection")
@@ -200,8 +201,9 @@ with st.sidebar:
         st.warning("❌ Features Not Loaded")
     
     st.caption("XAI Stress Detection Dashboard")
+# ================================= END OF SIDEBAR =========================================
 
-# ==================== AUTO-LOAD MODELS ====================
+# ================================= AUTO-LOAD MODELS =======================================
 @st.cache_resource
 def auto_load_models():
     models_path = 'models'
@@ -244,7 +246,7 @@ def auto_load_models():
 
 model, scaler, label_encoder, feature_names, shap_values, importance_df, load_error = auto_load_models()
 
-# ==================== FUNCTIONS ====================
+# =================================== FUNCTIONS ===================================================
 def predict_stress(features_df, model, scaler, label_encoder, feature_names):
     try:
         # Ensure we only use the features the model expects
@@ -258,7 +260,7 @@ def predict_stress(features_df, model, scaler, label_encoder, feature_names):
         st.error(f"Prediction error: {e}")
         return None, None
     
-# ==================== PAGE 1: DASHBOARD OVERVIEW ====================
+# =============================== PAGE 1: DASHBOARD OVERVIEW ========================================
 if page == "🏠 Dashboard Overview":
     st.markdown('<h1 class="main-header">🧠 XAI Stress Detection Dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Explainable AI Dashboard | AdaBoost + SHAP</p>', unsafe_allow_html=True)
@@ -319,8 +321,9 @@ if page == "🏠 Dashboard Overview":
         - **Prediction explanations** - Why each student got their result
         - **Transparency** - Understand the model's decision-making
         """)
+# =============================== END OF PAGE 1: DASHBOARD OVERVIEW ========================================
 
-# ==================== PAGE 2: UPLOAD MODEL FILES ====================
+# ==================================== PAGE 2: UPLOAD MODEL FILES =========================================
 elif page == "📤 Upload Model Files":
     st.header("📤 Upload Your Trained Model Files")
     st.markdown("Upload all the necessary files for the stress detection system.")
@@ -412,7 +415,7 @@ elif page == "📤 Upload Model Files":
                     try:
                         # Create a temporary directory to save files
                         with tempfile.TemporaryDirectory() as tmpdir:
-                            # ========== LOAD MODEL ==========
+                            # ====================== LOAD MODEL =================================
                             model_path = os.path.join(tmpdir, model_file.name)
                             with open(model_path, 'wb') as f:
                                 f.write(model_file.getvalue())
@@ -444,7 +447,7 @@ elif page == "📤 Upload Model Files":
                                 """, unsafe_allow_html=True)
                                 st.stop()
                             
-                            # ========== LOAD SCALER ==========
+                            # ========================= LOAD SCALER ===========================
                             scaler_path = os.path.join(tmpdir, scaler_file.name)
                             with open(scaler_path, 'wb') as f:
                                 f.write(scaler_file.getvalue())
@@ -475,7 +478,7 @@ elif page == "📤 Upload Model Files":
                                 """, unsafe_allow_html=True)
                                 st.stop()
                             
-                            # ========== LOAD LABEL ENCODER ==========
+                            # ======================== LOAD LABEL ENCODER ========================
                             le_path = os.path.join(tmpdir, label_encoder_file.name)
                             with open(le_path, 'wb') as f:
                                 f.write(label_encoder_file.getvalue())
@@ -498,7 +501,7 @@ elif page == "📤 Upload Model Files":
                                 """, unsafe_allow_html=True)
                                 st.stop()
                             
-                            # ========== LOAD FEATURE NAMES ==========
+                            # ========================== LOAD FEATURE NAMES ===========================
                             fname_path = os.path.join(tmpdir, feature_names_file.name)
                             with open(fname_path, 'wb') as f:
                                 f.write(feature_names_file.getvalue())
@@ -533,7 +536,7 @@ elif page == "📤 Upload Model Files":
                                 """.format(type(feature_names)), unsafe_allow_html=True)
                                 st.stop()
                             
-                            # ========== LOAD SHAP IMPORTANCE (Optional) ==========
+                            # ======================= LOAD SHAP IMPORTANCE (Optional) ======================
                             importance_df = None
                             if shap_importance_file is not None:
                                 try:
@@ -648,8 +651,9 @@ elif page == "📤 Upload Model Files":
                 st.rerun()
     else:
         st.warning("⚠️ No model files loaded yet. Please upload the required files above.")
+# ==================================== END OF PAGE 2: UPLOAD MODEL FILES =========================================
 
-# ==================== PAGE 3: STUDENT SELF-TEST ====================
+# ==================================== PAGE 3: STUDENT SELF-TEST ===========================================
 elif page == "📝 Student Self-Test":
     st.header("📝 Student Stress Assessment")
     st.markdown("Complete the questionnaire to get your personalized stress level assessment.")
@@ -1067,9 +1071,9 @@ elif page == "📝 Student Self-Test":
                         ### 🎯 Remember:
                         Even though your stress is low now, maintaining these habits will help you stay resilient during challenging times!
                         """)
-
-                        
-# ==================== PAGE 4: SHAP EXPLANATIONS ====================
+# ==================================== END OF PAGE 3: STUDENT SELF-TEST ===========================================
+       
+# ==================================== PAGE 4: SHAP EXPLANATIONS ==================================================
 elif page == "🔍 SHAP Explanations":
     st.header("🔍 Explainable AI - SHAP Analysis")
     st.markdown("Understand **WHY** the model predicts a certain stress level.")
@@ -1189,8 +1193,9 @@ elif page == "🔍 SHAP Explanations":
                         st.write(f"- 🔴 **{row['Feature']}** = {row['Value']} → This factor **increases** stress")
                     else:
                         st.write(f"- 🔵 **{row['Feature']}** = {row['Value']} → This factor **decreases** stress")
+# ==================================== END OF PAGE 4: SHAP EXPLANATIONS ==================================================
 
-# ==================== PAGE 5: BATCH PREDICTION ====================
+# ==================================== PAGE 5: BATCH PREDICTION =========================================================
 elif page == "📊 Batch Prediction":
     st.header("📊 Batch Prediction - Upload CSV")
     st.markdown("Upload a CSV file with multiple student records to get stress predictions for all.")
@@ -1266,8 +1271,9 @@ elif page == "📊 Batch Prediction":
                                 file_name="stress_predictions.csv",
                                 mime="text/csv"
                             )
+# ==================================== END OF PAGE 5: BATCH PREDICTION =========================================================
 
-# ==================== FOOTER ====================
+# ================================ FOOTER ===========================================
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666;">
