@@ -665,11 +665,11 @@ elif page == "📝 Student Self-Test":
         st.markdown("""
         <div class="info-box">
             <strong>📌 How to Answer:</strong><br>
-            • Most questions use a scale from 0 to 10<br>
-            • <strong>0 = Low / Minimal</strong> (No stress, Distress, High Stress)<br>
-            • <strong>10 = High / Severe</strong> (Extremely stressed, severe impact)<br>
-            • Slide to the right for higher stress levels<br>
-            • Gender and age use dropdown/number input for accurate data
+            • All questions use a scale from 0 to 10<br>
+            • <strong>0 = Never / Not at all / Very Low</strong><br>
+            • <strong>10 = Always / Very severely / Very High</strong><br>
+            • Slide to the right for higher frequency or severity<br>
+            • Gender and Age use special inputs (dropdown and number)
         </div>
         """, unsafe_allow_html=True)
         
@@ -680,171 +680,103 @@ elif page == "📝 Student Self-Test":
         col1, col2 = st.columns(2)
         user_input = {}
         
-        # Define friendly names and icons for common features with input types
-        feature_info = {
-            # Numerical features (0-10 scale)
-            'sleep': {'icon': '😴', 'label': 'Sleep Quality', 'type': 'slider', 
-                     'note': '0 = Very poor sleep, 10 = Excellent sleep',
-                     'interpretation': 'Low sleep quality increases stress'},
-            'sleep_hours': {'icon': '😴', 'label': 'Sleep Hours', 'type': 'slider',
-                          'note': '0 = No sleep (<4 hrs), 10 = More than 10 hours',
-                          'interpretation': 'Both too little and too much sleep can affect stress'},
-            'physical_activity': {'icon': '🏃', 'label': 'Physical Activity Level', 'type': 'slider',
-                                 'note': '0 = No exercise, 10 = Very active daily',
-                                 'interpretation': 'Regular exercise reduces stress'},
-            'exercise': {'icon': '🏃', 'label': 'Exercise Level', 'type': 'slider',
-                        'note': '0 = No exercise, 10 = Daily intense exercise',
-                        'interpretation': 'Physical activity helps manage stress'},
-            'study_hours': {'icon': '📚', 'label': 'Study/Work Hours', 'type': 'slider',
-                          'note': '0 = No study, 10 = Excessive study (>12 hrs/day)',
-                          'interpretation': 'Long study hours can increase stress'},
-            'study': {'icon': '📚', 'label': 'Study Pressure', 'type': 'slider',
-                     'note': '0 = No pressure, 10 = Overwhelming pressure',
-                     'interpretation': 'High academic pressure increases stress'},
-            'social': {'icon': '👥', 'label': 'Social Interaction', 'type': 'slider',
-                      'note': '0 = Isolated, 10 = Very social',
-                      'interpretation': 'Good social connections reduce stress'},
-            'social_hours': {'icon': '👥', 'label': 'Social Time', 'type': 'slider',
-                           'note': '0 = No social time, 10 = Excessive social time',
-                           'interpretation': 'Balance in social time is important'},
-            'workload': {'icon': '💼', 'label': 'Workload', 'type': 'slider',
-                        'note': '0 = Very light, 10 = Overwhelming',
-                        'interpretation': 'Heavy workload increases stress'},
-            'anxiety': {'icon': '😟', 'label': 'Anxiety Level', 'type': 'slider',
-                       'note': '0 = No anxiety, 10 = Severe anxiety',
-                       'interpretation': 'High anxiety strongly indicates stress'},
-            'heart_rate': {'icon': '💓', 'label': 'Heart Rate', 'type': 'slider',
-                          'note': '0 = Very low (<60 bpm), 10 = Very high (>100 bpm)',
-                          'interpretation': 'Elevated heart rate may indicate stress'},
-            'stress': {'icon': '⚡', 'label': 'General Stress Level', 'type': 'slider',
-                      'note': '0 = No stress, 10 = Extremely stressed',
-                      'interpretation': 'Direct measure of stress'},
-            'mood': {'icon': '😊', 'label': 'Mood', 'type': 'slider',
-                    'note': '0 = Very negative, 10 = Very positive',
-                    'interpretation': 'Poor mood correlates with higher stress'},
-            
-            # Age - special numeric input (not 0-10 scale)
-            'age': {'icon': '🎂', 'label': 'Age', 'type': 'number',
-                   'min': 0, 'max': 100, 'value': 25,
-                   'note': 'Enter your age in years',
-                   'interpretation': 'Age can influence stress patterns'},
-            
-            # Categorical features (use dropdown)
-            'gender': {'icon': '👤', 'label': 'Gender', 'type': 'select',
-                      'options': ['Male', 'Female', 'Prefer not to say'],
-                      'mapping': {'Male': 0, 'Female': 1, 'Prefer not to say': 3},
-                      'note': 'Select your gender'},
-        }
+        # ============ REMOVE DUPLICATE QUESTIONS ============
+        # Remove duplicates like anxiety appearing twice
+        unique_features = []
+        seen_features = set()
+        duplicate_features = []
         
-        # Store user inputs
-        for idx, feature in enumerate(st.session_state.feature_names):
+        for feature in st.session_state.feature_names:
+            # Clean the feature name 
+            clean_feature = feature.split('.')[0] if '.' in feature else feature
+            
+            if clean_feature.lower() not in seen_features:
+                unique_features.append(feature)
+                seen_features.add(clean_feature.lower())
+            else:
+                duplicate_features.append(feature)
+        
+        # Define special handling for Gender and Age
+        def is_gender_feature(feature_name):
+            return 'gender' in feature_name.lower()
+        
+        def is_age_feature(feature_name):
+            return 'age' in feature_name.lower()
+        
+        # Display questions using actual feature names
+        for idx, feature in enumerate(unique_features):
             # Determine column placement
             with col1 if idx % 2 == 0 else col2:
-                # Try to find matching feature info
-                info = None
-                for key in feature_info:
-                    if key in feature.lower():
-                        info = feature_info[key]
-                        break
                 
-                if info:
-                    icon = info['icon']
-                    label = info['label']
-                    
-                    # Handle different input types
-                    if info.get('type') == 'select':
-                        # Create dropdown for categorical features
-                        selected = st.selectbox(
-                            f"{icon} **{label}**",
-                            options=info['options'],
-                            help=info['note'],
-                            key=f"select_{feature}"
-                        )
-                        # Convert to numerical value using mapping
-                        user_input[feature] = info['mapping'][selected]
-                        st.caption(f"Selected: {selected} → Value: {user_input[feature]}")
-                    
-                    elif info.get('type') == 'number':
-                        # Special handling for age and other numeric features
-                        user_input[feature] = st.number_input(
-                            f"{icon} **{label}**",
-                            min_value=info.get('min', 0),
-                            max_value=info.get('max', 100),
-                            value=info.get('value', 25),
-                            step=1,
-                            help=info['note'],
-                            key=f"number_{feature}"
-                        )
-                        # Provide age interpretation
-                        if 'age' in feature.lower():
-                            if user_input[feature] < 18:
-                                st.caption(f"👶 Age: {user_input[feature]} - Young adult")
-                            elif user_input[feature] <= 25:
-                                st.caption(f"🎓 Age: {user_input[feature]} - Typical university age")
-                            elif user_input[feature] <= 35:
-                                st.caption(f"💼 Age: {user_input[feature]} - Young professional")
-                            else:
-                                st.caption(f"🌟 Age: {user_input[feature]} - Adult")
-                    
-                    else:  # Default to slider for numerical features
-                        user_input[feature] = st.slider(
-                            f"{icon} **{label}**",
-                            min_value=0,
-                            max_value=10,
-                            value=5,
-                            step=1,
-                            help=info['note'],
-                            key=f"slider_{feature}"
-                        )
-                        
-                        # Show current value with interpretation based on stress correlation
-                        if user_input[feature] <= 3:
-                            if any(word in feature.lower() for word in ['stress', 'anxiety', 'workload']):
-                                st.caption(f"✅ Current: {user_input[feature]} - Good (Low risk)")
-                            else:
-                                st.caption(f"✅ Current: {user_input[feature]} - Good (Low risk)")
-                        elif user_input[feature] <= 6:
-                            if any(word in feature.lower() for word in ['stress', 'anxiety', 'workload']):
-                                st.caption(f"⚠️ Current: {user_input[feature]} - Moderate (Some risk)")
-                            else:
-                                st.caption(f"⚠️ Current: {user_input[feature]} - Moderate (Some risk)")
-                        else:
-                            if any(word in feature.lower() for word in ['stress', 'anxiety', 'workload']):
-                                st.caption(f"🔴 Current: {user_input[feature]} - High (Elevated risk)")
-                            else:
-                                st.caption(f"🔴 Current: {user_input[feature]} - High (Elevated risk)")
+                # Check if this is Gender feature
+                if is_gender_feature(feature):
+                    selected = st.selectbox(
+                        f"👤 **{feature}**",
+                        options=['Male', 'Female', 'Prefer not to say'],
+                        help="Select your gender",
+                        key=f"select_gender"
+                    )
+                    gender_mapping = {'Male': 0, 'Female': 1, 'Prefer not to say': 2}
+                    user_input[feature] = gender_mapping[selected]
+                    st.caption(f"Selected: {selected}")
                 
-                else:
-                    # Unknown feature - check if it's age related
-                    if 'age' in feature.lower():
-                        user_input[feature] = st.number_input(
-                            f"🎂 **{feature.replace('_', ' ').title()}**",
-                            min_value=0,
-                            max_value=100,
-                            value=25,
-                            step=1,
-                            help="Enter your age in years",
-                            key=f"number_{feature}"
-                        )
+                # Check if this is Age feature
+                elif is_age_feature(feature):
+                    user_input[feature] = st.number_input(
+                        f"🎂 **{feature}**",
+                        min_value=16,
+                        max_value=100,
+                        value=22,
+                        step=1,
+                        help="Enter your age in years",
+                        key=f"number_age"
+                    )
+                    if user_input[feature] < 18:
+                        st.caption(f"👶 Age: {user_input[feature]} - Young adult")
+                    elif user_input[feature] <= 25:
+                        st.caption(f"🎓 Age: {user_input[feature]} - Typical university age")
+                    elif user_input[feature] <= 35:
+                        st.caption(f"💼 Age: {user_input[feature]} - Young professional")
                     else:
-                        # Default slider for unknown features
-                        label = feature.replace('_', ' ').title()
-                        user_input[feature] = st.slider(
-                            f"📊 **{label}**",
-                            min_value=0,
-                            max_value=10,
-                            value=5,
-                            step=1,
-                            help=f"0 = Low / Minimal, 10 = High / Severe",
-                            key=f"slider_{feature}"
-                        )
-                        
-                        if user_input[feature] <= 3:
-                            st.caption(f"✅ Current: {user_input[feature]} - Good (Low risk)")
-                        elif user_input[feature] <= 6:
-                            st.caption(f"⚠️ Current: {user_input[feature]} - Moderate (Some risk)")
-                        else:
-                            st.caption(f"🔴 Current: {user_input[feature]} - High (Elevated risk)")
+                        st.caption(f"🌟 Age: {user_input[feature]} - Adult")
+                
+                # Regular slider for all other features (0-10 scale)
+                else:
+                    # Create a friendly display name from the feature
+                    display_name = feature.replace('_', ' ').title()
+                    
+                    user_input[feature] = st.slider(
+                        f"📊 **{display_name}**",
+                        min_value=0,
+                        max_value=10,
+                        value=5,
+                        step=1,
+                        help=f"0 = Never/Low, 10 = Always/High - Rate: {display_name}",
+                        key=f"slider_{idx}_{feature[:20]}"
+                    )
+                    
+                    # Show interpretation based on score
+                    if user_input[feature] <= 2:
+                        st.caption(f"✅ Score: {user_input[feature]} - Low / Never / Not at all")
+                    elif user_input[feature] <= 4:
+                        st.caption(f"✅ Score: {user_input[feature]} - Mild / Occasionally")
+                    elif user_input[feature] <= 6:
+                        st.caption(f"⚠️ Score: {user_input[feature]} - Moderate / Sometimes")
+                    elif user_input[feature] <= 8:
+                        st.caption(f"🔴 Score: {user_input[feature]} - High / Frequently")
+                    else:
+                        st.caption(f"🔥 Score: {user_input[feature]} - Severe / Always")
+        
+        # ============ HANDLE DUPLICATE FEATURES FOR MODEL ============
+        # For duplicate features, copy the value from the first occurrence
+        for duplicate in duplicate_features:
+            # Find the original feature (without .1, .2)
+            clean_dup = duplicate.split('.')[0] if '.' in duplicate else duplicate
+            for original in unique_features:
+                clean_original = original.split('.')[0] if '.' in original else original
+                if clean_original.lower() == clean_dup.lower() and original != duplicate:
+                    user_input[duplicate] = user_input[original]
+                    break
         
         st.markdown("---")
         
@@ -862,9 +794,9 @@ elif page == "📝 Student Self-Test":
                 # Create dataframe with user inputs
                 input_df = pd.DataFrame([user_input])
                 
-                # DEBUG: Show what's being sent to model (collapsible)
-                with st.expander("🔍 Debug Information (Click to expand if needed)"):
-                    st.write("**Input values being sent to model:**")
+                # Debug info (collapsible)
+                with st.expander("🔍 Debug Information (Click to expand)"):
+                    st.write("**Features sent to model:**")
                     st.dataframe(pd.DataFrame([user_input]).head())
                 
                 # Make prediction
@@ -877,7 +809,7 @@ elif page == "📝 Student Self-Test":
                 )
                 
                 if prediction is not None:
-                    # FIX: Handle numeric predictions properly
+                    # Handle numeric predictions
                     numeric_to_stress = {0: 'Low', 1: 'Moderate', 2: 'High'}
                     
                     # Extract prediction value
@@ -888,36 +820,31 @@ elif page == "📝 Student Self-Test":
                     
                     # Convert to stress level string
                     if isinstance(pred_value, (int, float, np.integer)):
-                        # If it's numeric, map to stress level
                         stress_level = numeric_to_stress.get(int(pred_value), 'Unknown')
                     else:
-                        # If it's already string, use as is
                         stress_level = str(pred_value).strip()
                     
-                    
-                    # Display prediction with appropriate styling
+                    # Display prediction with styling
                     if stress_level.lower() == "low":
                         st.markdown("""
                         <div class="prediction-low">
                             <h2>✅ Low Stress Level Detected</h2>
                             <p>Great news! Your responses indicate you're managing stress well.</p>
-                            <p>💚 Keep up the healthy habits! Remember to maintain balance and self-care.</p>
+                            <p>💚 Keep up the healthy habits!</p>
                             <hr>
-                            <p><strong>What this means:</strong> Your current lifestyle and coping strategies are working well. You're in a good position to handle challenges that come your way.</p>
+                            <p><strong>What this means:</strong> Your current coping strategies are working well.</p>
                         </div>
                         """, unsafe_allow_html=True)
-                        
-                        # Additional encouraging message for low stress
                         st.balloons()
                     
                     elif stress_level.lower() == "moderate":
                         st.markdown("""
-                        <div class="prediction-moderate"><br>
+                        <div class="prediction-moderate">
                             <h2>⚠️ Moderate Stress Level Detected</h2>
                             <p>You're experiencing some stress, but there are effective ways to manage it.</p>
                             <p>💛 With some adjustments, you can reduce your stress levels.</p>
                             <hr>
-                            <p><strong>What this means:</strong> Your stress levels are elevated but manageable. This is a good time to implement stress reduction strategies.</p>
+                            <p><strong>What this means:</strong> Your stress levels are elevated but manageable.</p>
                         </div>
                         """, unsafe_allow_html=True)
                     
@@ -926,153 +853,102 @@ elif page == "📝 Student Self-Test":
                         <div class="prediction-high">
                             <h2>🔴 High Stress Level Detected</h2>
                             <p>Your responses indicate significant stress that may be affecting your well-being.</p>
-                            <p>❤️ It's important to take action now. You deserve support and care.</p>
+                            <p>❤️ It's important to take action now.</p>
                             <hr>
-                            <p><strong>What this means:</strong> Your stress levels are concerning. This is a critical time to prioritize your mental health and seek support.</p>
+                            <p><strong>What this means:</strong> Your stress levels are concerning.</p>
                         </div>
                         """, unsafe_allow_html=True)
                     
                     else:
                         st.error(f"Unexpected prediction result: {stress_level}")
-                        st.info("""
-                        **Troubleshooting:**
-                        - The model may have returned an unexpected value
-                        - Please check if your model was trained with stress levels: Low, Moderate, High
-                        """)
                     
-                    # Show probabilities with explanation
+                    # Show probabilities chart
                     st.subheader("📊 Model Prediction Confidence")
-                    st.markdown("""
-                    **How to read this chart:** 
-                    - The bars show how confident the AI model is about each stress level
-                    - Higher bars = Higher confidence in that prediction
-                    - The model calculates probabilities for all three levels (Low, Moderate, High)
-                    - The highest bar is the final prediction
-                    """)
+                    st.markdown("Higher bar = Model is more confident in that prediction")
                     
                     classes = get_label_encoder_classes(st.session_state.label_encoder)
                     prob_df = pd.DataFrame({
                         'Stress Level': classes,
-                        'Probability': probabilities[0] * 100
+                        'Confidence (%)': probabilities[0] * 100
                     })
-                    fig = px.bar(prob_df, x='Stress Level', y='Probability', 
-                                 title="Model's Prediction Confidence (Higher Bar = More Confident)",
+                    fig = px.bar(prob_df, x='Stress Level', y='Confidence (%)', 
+                                 title="Model's Prediction Confidence",
                                  color='Stress Level',
                                  color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'})
-                    fig.update_layout(
-                        yaxis_title="Confidence (%)", 
-                        xaxis_title="Stress Level",
-                        yaxis_range=[0, 100]
-                    )
+                    fig.update_layout(yaxis_range=[0, 100])
                     fig.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # ==================== RECOMMENDATIONS SECTION ====================
+                    # ==================== RECOMMENDATIONS ====================
                     st.subheader("💡 Personalized Recommendations")
                     
-                    # Recommendations based on the predicted stress level
                     if stress_level.lower() == "high":
                         st.error("""
                         ### 🚨 IMMEDIATE ACTIONS RECOMMENDED
                         
-                        Your responses indicate HIGH stress levels. Please take immediate action:
-                        
                         **1. Professional Support (Priority)**
-                        - 🗣️ **Talk to a counselor** or mental health professional immediately
+                        - 🗣️ **Talk to a counselor** or mental health professional
                         - 📞 **Call a mental health helpline** if you need immediate support
-                        - 🏥 **Visit your university's counseling center** 
                         
                         **2. Immediate Self-Care (Today)**
-                        - 🧘 **Practice deep breathing:** Inhale for 4 seconds, hold for 4, exhale for 4 (repeat 5 times)
+                        - 🧘 **Practice deep breathing:** Inhale 4 sec, hold 4 sec, exhale 4 sec
                         - 😴 **Prioritize sleep** - aim for 7-9 hours tonight
-                        - 🚶 **Take a 10-15 minute walk** outside in nature
-                        - 💧 **Stay hydrated** and avoid caffeine and alcohol
-                        - 📝 **Write down your main stressors** to identify patterns
+                        - 🚶 **Take a 10-15 minute walk** outside
                         
-                        **3. Short-term Stress Management (This Week)**
-                        - 🎯 **Break large tasks** into smaller, manageable steps
-                        - ⏰ **Set realistic daily goals** - don't overcommit
-                        - 🙏 **Practice mindfulness** using apps like Headspace or Calm
-                        - 🚫 **Set boundaries** - learn to say no to additional commitments
-                        - 👥 **Reach out to trusted friends or family** for support
+                        **3. Short-term Stress Management**
+                        - 🎯 **Break large tasks** into smaller steps
+                        - ⏰ **Set realistic daily goals**
+                        - 👥 **Reach out to trusted friends or family**
                         """)
                         
                         st.info("""
                         ### 🎯 Remember:
                         - You are not alone - many students experience high stress
                         - Seeking help is a sign of strength, not weakness
-                        - Your mental health is as important as your physical health
-                        - Take one step at a time - small changes add up
+                        - Take one step at a time
                         """)
                     
                     elif stress_level.lower() == "moderate":
                         st.warning("""
                         ### 📋 RECOMMENDED ACTIONS
                         
-                        Your responses show MODERATE stress levels. These strategies can help:
-                        
-                        **1. Daily Habits to Reduce Stress**
-                        - 🧘 **5-10 minutes of meditation** or deep breathing daily
+                        **Daily Habits to Reduce Stress**
+                        - 🧘 **5-10 minutes of meditation** daily
                         - 😴 **Maintain consistent sleep schedule** (7-9 hours)
-                        - 🏃 **20-30 minutes of physical activity** daily (walking, yoga, etc.)
-                        - 🥗 **Eat balanced meals**, stay hydrated, reduce caffeine
+                        - 🏃 **20-30 minutes of physical activity** daily
                         
-                        **2. Work/Life Balance Strategies**
-                        - 📝 **Create a realistic daily schedule** with built-in breaks
-                        - ⏰ **Take regular breaks** (5 min every hour, 15 min every 2 hours)
-                        - 🎯 **Set achievable goals** - focus on progress, not perfection
-                        - 🚫 **Set boundaries** for work/study time
-                        
-                        **3. Social Connection**
-                        - 👥 **Connect with friends or family** regularly (even virtually)
-                        - 🎯 **Join a group activity or club** that interests you
-                        - 💬 **Share your feelings** with someone you trust
-                        
-                        **4. Stress Reduction Techniques**
-                        - 📖 **Practice gratitude journaling** (write 3 things you're grateful for daily)
-                        - 🎵 **Listen to calming music** or nature sounds
-                        - 🧘 **Try progressive muscle relaxation** (tensing and relaxing each muscle group)
+                        **Work/Life Balance**
+                        - 📝 **Create a realistic daily schedule**
+                        - ⏰ **Take regular breaks** (5 min every hour)
+                        - 🎯 **Set achievable goals**
                         """)
-
+                        
                         st.info("""
                         ### 🎯 Remember:
-                        - You're not alone - many students experience moderate stress
                         - Small changes today can prevent bigger problems tomorrow
                         - It's okay to ask for help before stress becomes overwhelming
-                        - Take breaks, breathe deeply, and be kind to yourself
                         """)
                     
                     else:  # Low Stress
                         st.success("""
                         ### 🌟 MAINTAIN YOUR HEALTHY HABITS
                         
-                        Great job managing your stress! Continue these practices:
-                        
-                        **1. Keep Up the Good Work**
+                        **Keep Up the Good Work**
                         - 👍 **Continue your current healthy routines**
-                        - 🏋️ **Maintain regular exercise** (3-5 times per week)
                         - 😊 **Keep monitoring your stress levels** weekly
                         - 🧘 **Practice mindfulness** to build resilience
                         
-                        **2. Prevention Strategies**
-                        - 📖 **Practice gratitude journaling** to maintain positive mindset
-                        - 🎯 **Set achievable daily goals** to avoid future stress buildup
-                        - 👥 **Stay connected with friends and family** for support network
-                        - 🌱 **Learn new stress management techniques** before you need them
-                        
-                        **3. Early Warning Signs to Watch**
-                        - 🔍 **Notice early signs of stress** (irritability, sleep changes, etc.)
-                        - 🚶 **Take breaks before feeling overwhelmed**
-                        - 💪 **Build resilience** through consistent healthy habits
+                        **Prevention Strategies**
+                        - 📖 **Practice gratitude journaling**
+                        - 👥 **Stay connected with friends and family**
                         - 📅 **Schedule regular self-care** activities
                         """)
                         
                         st.info("""
                         ### 🎯 Remember:
-                        Even though your stress is low now, maintaining these habits will help you stay resilient during challenging times!
+                        Maintaining these habits will help you stay resilient during challenging times!
                         """)
-# ==================================== END OF PAGE 3: STUDENT SELF-TEST ===========================================
-       
+
 # ==================================== PAGE 4: SHAP EXPLANATIONS ==================================================
 elif page == "🔍 SHAP Explanations":
     st.header("🔍 Explainable AI - SHAP Analysis")
