@@ -283,20 +283,45 @@ if page == "🏠 Dashboard Overview":
             st.metric("Model Status", "✅ Loaded", delta="AdaBoost")
         with col2:
             if 'feature_names' in st.session_state:
-                st.metric("Features", len(st.session_state.feature_names))
+                # Count unique features (without duplicates)
+                unique_feature_count = len(set([f.split('.')[0] if '.' in f else f for f in st.session_state.feature_names]))
+                st.metric("Unique Features", unique_feature_count)
         with col3:
             if 'label_encoder' in st.session_state:
                 classes = get_label_encoder_classes(st.session_state.label_encoder)
                 st.metric("Stress Classes", len(classes))
         
-        # Show feature names preview
+        # Show unique feature names preview (without duplicates)
         st.markdown("---")
         st.subheader("📋 Features in Your Model")
+        
         if 'feature_names' in st.session_state:
+            # Remove duplicate features for display
+            unique_features = []
+            seen_features = set()
+            duplicate_count = 0
+            
+            for feature in st.session_state.feature_names:
+                # Clean the feature name
+                clean_feature = feature.split('.')[0] if '.' in feature else feature
+                
+                if clean_feature.lower() not in seen_features:
+                    unique_features.append(feature)
+                    seen_features.add(clean_feature.lower())
+                else:
+                    duplicate_count += 1
+            
+            # Show note if duplicates were removed
+            if duplicate_count > 0:
+                st.info(f"ℹ️ Showing {len(unique_features)} unique features ({duplicate_count} duplicate(s) hidden)")
+            
+            # Display unique features in columns
             cols = st.columns(4)
-            for idx, feature in enumerate(st.session_state.feature_names):
+            for idx, feature in enumerate(unique_features):
                 with cols[idx % 4]:
-                    st.write(f"- {feature}")
+                    # Clean up display name
+                    display_name = feature.split('.')[0] if '.' in feature else feature
+                    st.write(f"- {display_name}")
     
     st.markdown("---")
     
@@ -326,7 +351,7 @@ if page == "🏠 Dashboard Overview":
 # ==================================== PAGE 2: UPLOAD MODEL FILES =========================================
 elif page == "📤 Upload Model Files":
     st.header("📤 Upload Your Trained Model Files")
-    st.markdown("Upload all the necessary files for the stress detection system.")
+    st.markdown("Upload all the necessary files with the correct format for the stress detection system.")
     
     with st.form("upload_model_form"):
         st.subheader("📁 Required Files")
@@ -633,7 +658,7 @@ elif page == "📤 Upload Model Files":
     st.subheader("📊 Currently Loaded Status")
     
     if 'model' in st.session_state and st.session_state.model is not None:
-        st.success("✅ Model files are loaded and ready to use!")
+        st.success("✅ Model files are loaded successfully and ready to use")
         
         col1, col2, col3 = st.columns(3)
         with col1:
