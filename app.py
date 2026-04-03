@@ -160,7 +160,7 @@ with st.sidebar:
             "📤 Upload Model Files",
             "📝 Student Self-Test",
             "🔍 SHAP Explanations",
-            "📊 Batch Prediction"
+            "📂 Batch Prediction"
         ]
     )
     
@@ -1097,8 +1097,8 @@ elif page == "🔍 SHAP Explanations":
 # ==================================== END OF PAGE 4: SHAP EXPLANATIONS ==================================================
 
 # ==================================== PAGE 5: BATCH PREDICTION =========================================================
-elif page == "📊 Batch Prediction":
-    st.header("📊 Batch Prediction - Upload CSV")
+elif page == "📂 Batch Prediction":
+    st.header("📂 Batch Prediction")
     st.markdown("Upload a CSV file with multiple student records to get stress predictions for all.")
     
     if 'model' not in st.session_state or st.session_state.model is None:
