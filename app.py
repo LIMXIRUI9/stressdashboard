@@ -248,7 +248,6 @@ def predict_stress(features_df, model, scaler, label_encoder, feature_names):
         return None, None
     
 # =============================== PAGE 1: DASHBOARD OVERVIEW ========================================
-# =============================== PAGE 1: DASHBOARD OVERVIEW ========================================
 if page == "🏠 Dashboard Overview":
     st.markdown('<h1 class="main-header">XAI Stress Detection Dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Explainable AI Dashboard | AdaBoost + SHAP</p>', unsafe_allow_html=True)
@@ -264,13 +263,14 @@ if page == "🏠 Dashboard Overview":
         1. Go to **Upload Model Files** in the sidebar
         2. Upload your trained AdaBoost model, scaler, label encoder, and feature names
         3. Then use the **Student Self-Test** or **Batch Prediction** features
+        4. Charts will automatically populate with real data from your predictions!
         """)
     else:
         # ============ TOP METRICS ROW ============
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            # Count unique features
+            # Count unique features (remove .1 duplicates)
             unique_features = set()
             for f in st.session_state.feature_names:
                 clean_f = f.split('.')[0] if '.' in f else f
@@ -285,165 +285,245 @@ if page == "🏠 Dashboard Overview":
                 st.caption("Low | Moderate | High")
         
         with col3:
+            # Count total predictions made from real data
+            total_predictions = 0
+            if 'prediction_history' in st.session_state:
+                for batch in st.session_state.prediction_history:
+                    total_predictions += len(batch['data'])
+            if 'test_history' in st.session_state:
+                total_predictions += len(st.session_state.test_history)
+            st.metric("Total Predictions", total_predictions)
+            st.caption("From Self-Tests & Batch")
+        
+        with col4:
             st.metric("Model", "AdaBoost")
             st.caption("Ensemble Learning")
         
-        with col4:
-            st.metric("XAI Method", "SHAP")
-            st.caption("Explainable AI")
-        
         st.markdown("---")
         
-        # ============ CHART 1: FEATURE CATEGORY DISTRIBUTION ============
-        st.subheader("Feature Category Distribution")
-        
-        # Categorize features
-        categories = {
-            '😴 Sleep & Health': 0,
-            '🏃 Physical Activity': 0,
-            '📚 Academic': 0,
-            '💭 Mental/Emotional': 0,
-            '👥 Social': 0,
-            '🏠 Environment': 0,
-            '📅 Lifestyle': 0,
-            '📈 Other': 0
-        }
-        
-        for feature in st.session_state.feature_names:
-            f_lower = feature.lower()
-            if any(word in f_lower for word in ['sleep', 'headache', 'heart', 'palpitation', 'weight', 'illness']):
-                categories['😴 Sleep & Health'] += 1
-            elif any(word in f_lower for word in ['physical', 'exercise', 'activity']):
-                categories['🏃 Physical Activity'] += 1
-            elif any(word in f_lower for word in ['academic', 'study', 'workload', 'class', 'concentrat', 'performance']):
-                categories['📚 Academic'] += 1
-            elif any(word in f_lower for word in ['anxiety', 'stress', 'tension', 'mood', 'sadness', 'irrit', 'confiden']):
-                categories['💭 Mental/Emotional'] += 1
-            elif any(word in f_lower for word in ['social', 'lonely', 'friend', 'relationship', 'peer']):
-                categories['👥 Social'] += 1
-            elif any(word in f_lower for word in ['environment', 'hostel', 'home', 'professor', 'work']):
-                categories['🏠 Environment'] += 1
-            elif any(word in f_lower for word in ['relax', 'leisure', 'extracurricular']):
-                categories['📅 Lifestyle'] += 1
-            else:
-                categories['📈 Other'] += 1
-        
-        # Remove empty categories
-        categories = {k: v for k, v in categories.items() if v > 0}
-        
-        # Create pie chart
-        fig1 = px.pie(
-            values=list(categories.values()),
-            names=list(categories.keys()),
-            title="Feature Distribution by Category",
-            color_discrete_sequence=px.colors.qualitative.Set3,
-            hole=0.3
-        )
-        fig1.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # ============ CHART 2: SAMPLE STRESS DISTRIBUTION (if batch data exists) ============
-        st.subheader("Stress Level Distribution Analysis")
+        # ============ ROW 1: AGE AND GENDER ANALYSIS ============
+        st.subheader("Age and Gender Analysis")
+        st.caption("Age distribution and gender breakdown from self-tests")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            # Simulated/Example data for demonstration
-            # In real use, this would come from your batch predictions
-            sample_data = {
-                'Stress Level': ['Low', 'Moderate', 'High'],
-                'Percentage': [35, 45, 20]
-            }
-            df_sample = pd.DataFrame(sample_data)
+            # CHART 1: AGE DISTRIBUTION (BAR CHART)
+            ages = []
             
-            fig2 = px.bar(
-                df_sample, 
-                x='Stress Level', 
-                y='Percentage',
-                title="Typical Student Stress Distribution",
-                color='Stress Level',
-                color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'},
-                text='Percentage'
-            )
-            fig2.update_traces(texttemplate='%{text}%', textposition='outside')
-            fig2.update_layout(yaxis_range=[0, 100], yaxis_title="Percentage (%)")
-            st.plotly_chart(fig2, use_container_width=True)
+            # Collect age data from self-test history
+            if 'test_history' in st.session_state:
+                for test in st.session_state.test_history:
+                    if 'responses' in test:
+                        for feature, value in test['responses'].items():
+                            if 'age' in feature.lower():
+                                if isinstance(value, (int, float)):
+                                    ages.append(value)
+                                break
+            
+            if ages:
+                age_df = pd.DataFrame({'Age': ages})
+                
+                # Create age groups/bins
+                bins = [16, 20, 25, 30, 35, 40, 100]
+                labels = ['16-20', '21-25', '26-30', '31-35', '36-40', '40+']
+                age_df['Age Group'] = pd.cut(age_df['Age'], bins=bins, labels=labels, right=False)
+                
+                age_group_counts = age_df['Age Group'].value_counts().reset_index()
+                age_group_counts.columns = ['Age Group', 'Count']
+                age_group_counts = age_group_counts.sort_values('Age Group')
+                
+                fig_age = px.bar(age_group_counts, x='Age Group', y='Count',
+                                title=f"Age Distribution ({len(ages)} students)",
+                                color='Count', color_continuous_scale='Blues',
+                                text='Count')
+                fig_age.update_traces(textposition='outside')
+                fig_age.update_layout(yaxis_title="Number of Students", height=400)
+                st.plotly_chart(fig_age, use_container_width=True)
+            else:
+                st.info("No age data yet. Complete a Self-Test to see age distribution!")
         
         with col2:
-            # Donut chart for the same data
-            fig3 = px.pie(
-                values=[35, 45, 20],
-                names=['Low Stress', 'Moderate Stress', 'High Stress'],
-                title="Stress Level Distribution",
-                color=['Low Stress', 'Moderate Stress', 'High Stress'],
-                color_discrete_map={'Low Stress': '#28a745', 'Moderate Stress': '#ffc107', 'High Stress': '#dc3545'},
-                hole=0.4
-            )
-            fig3.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig3, use_container_width=True)
-        
-        # ============ CHART 3: KEY STRESS INDICATORS (Radar Chart) ============
-        st.subheader("Key Stress Indicators")
-        
-        # Define key indicators and their typical importance
-        indicators = {
-            'Anxiety': 85,
-            'Sleep Quality': 78,
-            'Workload': 82,
-            'Academic Confidence': 70,
-            'Social Connection': 65,
-            'Physical Activity': 60
-        }
-        
-        indicator_df = pd.DataFrame({
-            'Indicator': list(indicators.keys()),
-            'Impact Score': list(indicators.values())
-        })
-        
-        fig4 = px.bar(
-            indicator_df,
-            x='Indicator',
-            y='Impact Score',
-            title="Feature Impact on Stress Prediction (SHAP-based)",
-            color='Impact Score',
-            color_continuous_scale='RdYlGn_r',
-            text='Impact Score'
-        )
-        fig4.update_traces(textposition='outside')
-        fig4.update_layout(yaxis_range=[0, 100], yaxis_title="Impact Score")
-        st.plotly_chart(fig4, use_container_width=True)
-        
-        # ============ CHART 4: FEATURE WORD CLOUD / TOP FEATURES ============
-        st.subheader("Top Stress-Related Factors")
-        
-        # Extract top features from feature names
-        top_features = []
-        for feature in st.session_state.feature_names:
-            clean_f = feature.split('.')[0] if '.' in feature else feature
-            if len(clean_f) > 10:  # Only meaningful long names
-                top_features.append(clean_f)
-        
-        # Show as horizontal bar chart
-        if top_features:
-            # Create sample importance (in real app, use SHAP values)
-            importance_scores = [abs(hash(f)) % 100 for f in top_features[:10]]
-            top_10_df = pd.DataFrame({
-                'Feature': top_features[:10],
-                'Importance': importance_scores
-            }).sort_values('Importance', ascending=True)
+            # CHART 2: GENDER DISTRIBUTION (PIE CHART)
+            gender_counts = {'Male': 0, 'Female': 0, 'Prefer not to say': 0}
             
-            fig5 = px.bar(
-                top_10_df,
-                x='Importance',
-                y='Feature',
-                orientation='h',
-                title="Top 10 Feature Importance",
-                color='Importance',
-                color_continuous_scale='Viridis'
+            # Collect gender data from self-test history
+            if 'test_history' in st.session_state:
+                for test in st.session_state.test_history:
+                    if 'responses' in test:
+                        for feature, value in test['responses'].items():
+                            if 'gender' in feature.lower():
+                                if value == 0:
+                                    gender_counts['Male'] += 1
+                                elif value == 1:
+                                    gender_counts['Female'] += 1
+                                elif value == 2:
+                                    gender_counts['Prefer not to say'] += 1
+                                break
+            
+            if sum(gender_counts.values()) > 0:
+                gender_df = pd.DataFrame({
+                    'Gender': list(gender_counts.keys()),
+                    'Count': list(gender_counts.values())
+                })
+                fig_gender = px.pie(gender_df, values='Count', names='Gender',
+                                   title=f"Gender Distribution ({sum(gender_counts.values())} responses)",
+                                   color='Gender',
+                                   color_discrete_map={'Male': "#347fdb", 'Female': "#e84343", 'Prefer not to say': '#95a5a6'},
+                                   hole=0.4)
+                fig_gender.update_traces(textposition='inside', textinfo='percent+label')
+                fig_gender.update_layout(height=400)
+                st.plotly_chart(fig_gender, use_container_width=True)
+            else:
+                st.info("No gender data yet. Complete a Self-Test to see gender distribution!")
+        
+        st.markdown("---")
+        
+        # ============ ROW 2: STRESS DISTRIBUTION ANALYSIS ============
+        st.subheader("Stress Distribution Analysis")
+        st.caption("Stress levels from predictions and self-tests")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # CHART 3: STRESS DISTRIBUTION (BAR CHART)
+            stress_counts = {'Low': 0, 'Moderate': 0, 'High': 0}
+            
+            if 'prediction_history' in st.session_state:
+                for batch in st.session_state.prediction_history:
+                    for pred in batch['predictions']:
+                        if pred in stress_counts:
+                            stress_counts[pred] += 1
+            
+            if 'test_history' in st.session_state:
+                for test in st.session_state.test_history:
+                    if test['stress_level'] in stress_counts:
+                        stress_counts[test['stress_level']] += 1
+            
+            if sum(stress_counts.values()) > 0:
+                stress_df = pd.DataFrame({
+                    'Stress Level': list(stress_counts.keys()),
+                    'Count': list(stress_counts.values())
+                })
+                fig_stress = px.bar(stress_df, x='Stress Level', y='Count', 
+                                   title=f"Stress Distribution ({sum(stress_counts.values())} predictions)",
+                                   color='Stress Level',
+                                   color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'},
+                                   text='Count')
+                fig_stress.update_traces(textposition='outside')
+                fig_stress.update_layout(yaxis_title="Number of Students", height=400)
+                st.plotly_chart(fig_stress, use_container_width=True)
+            else:
+                st.info("No prediction data yet. Complete a Self-Test or upload a Batch CSV!")
+        
+        with col2:
+            # Empty column for spacing (or you can add something else here)
+            st.empty()
+        
+        st.markdown("---")
+        
+        # ============ ROW 3: FEATURE ANALYSIS ============
+        st.subheader("Feature Analysis")
+        st.caption("Top factors affecting stress prediction (SHAP-based)")
+        
+        # CHART 4: FEATURE IMPORTANCE (BAR CHART) - Full width or single column
+        if 'importance_df' in st.session_state and st.session_state.importance_df is not None:
+            importance_df = st.session_state.importance_df.head(10)
+            fig_importance = px.bar(importance_df, x='Importance', y='Feature', 
+                                   orientation='h', title="Top 10 Features Impacting Stress",
+                                   color='Importance', color_continuous_scale='Reds',
+                                   text='Importance')
+            fig_importance.update_traces(texttemplate='%{text:.3f}', textposition='outside')
+            fig_importance.update_layout(height=500, xaxis_title="SHAP Importance Score")
+            st.plotly_chart(fig_importance, use_container_width=True)
+        else:
+            st.info("Upload 'shap_global_importance.csv' in Upload Model Files to see feature importance chart.")
+        
+        st.markdown("---")
+        
+        # ============ ROW 4: PREDICTIONS OVER TIME ============
+        st.subheader("Predictions Over Time")
+        st.caption("Track stress patterns over time from your prediction history")
+        
+        timeline_data = []
+        
+        if 'test_history' in st.session_state:
+            for test in st.session_state.test_history:
+                timeline_data.append({
+                    'Date': test['timestamp'],
+                    'Stress Level': test['stress_level'],
+                    'Type': 'Self-Test'
+                })
+        
+        if 'prediction_history' in st.session_state:
+            for batch in st.session_state.prediction_history:
+                for i, pred in enumerate(batch['predictions']):
+                    timeline_data.append({
+                        'Date': batch['timestamp'] + pd.Timedelta(seconds=i),
+                        'Stress Level': pred,
+                        'Type': 'Batch'
+                    })
+        
+        if timeline_data:
+            timeline_df = pd.DataFrame(timeline_data)
+            timeline_df = timeline_df.sort_values('Date')
+            
+            # Convert stress levels to numeric for better y-axis
+            stress_order = {'Low': 0, 'Moderate': 1, 'High': 2}
+            timeline_df['Stress_Numeric'] = timeline_df['Stress Level'].map(stress_order)
+            
+            fig_timeline = px.line(timeline_df, x='Date', y='Stress_Numeric', 
+                                   color='Type', title="Stress Level Trends Over Time",
+                                   markers=True,
+                                   color_discrete_map={'Self-Test': '#2E86AB', 'Batch': '#F39C12'})
+            
+            # Update y-axis to show stress level names instead of numbers
+            fig_timeline.update_layout(
+                yaxis_title="Stress Level",
+                yaxis=dict(
+                    tickmode='array',
+                    tickvals=[0, 1, 2],
+                    ticktext=['Low', 'Moderate', 'High']
+                ),
+                height=450
             )
-            fig5.update_layout(yaxis_title="", xaxis_title="Importance Score")
-            st.plotly_chart(fig5, use_container_width=True)
-
+            st.plotly_chart(fig_timeline, use_container_width=True)
+        else:
+            st.info("No prediction history yet. Complete a Self-Test to see your timeline!")
+        
+        st.markdown("---")
+        
+        # ============ ROW 5: RECENT ACTIVITY ============
+        st.subheader("Recent Activity")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Recent Self-Tests**")
+            if 'test_history' in st.session_state and st.session_state.test_history:
+                recent_tests = st.session_state.test_history[-5:]
+                for test in reversed(recent_tests):
+                    time_str = test['timestamp'].strftime("%d/%m/%Y %H:%M")
+                    if test['stress_level'] == 'Low':
+                        st.success(f"{time_str}: {test['stress_level']} Stress")
+                    elif test['stress_level'] == 'Moderate':
+                        st.warning(f"{time_str}: {test['stress_level']} Stress")
+                    else:
+                        st.error(f"{time_str}: {test['stress_level']} Stress")
+            else:
+                st.info("No self-test history yet.")
+        
+        with col2:
+            st.markdown("**Recent Batch Predictions**")
+            if 'prediction_history' in st.session_state and st.session_state.prediction_history:
+                recent_batches = st.session_state.prediction_history[-3:]
+                for batch in reversed(recent_batches):
+                    time_str = batch['timestamp'].strftime("%d/%m/%Y %H:%M")
+                    counts = pd.Series(batch['predictions']).value_counts()
+                    st.caption(f"{time_str}: {len(batch['data'])} students - Low: {counts.get('Low', 0)}, Moderate: {counts.get('Moderate', 0)}, High: {counts.get('High', 0)}")
+            else:
+                st.info("No batch prediction history yet.")
+                
 # =============================== END OF PAGE 1: DASHBOARD OVERVIEW ========================================
 
 # ==================================== PAGE 2: UPLOAD MODEL FILES =========================================
@@ -603,10 +683,9 @@ elif page == "📝 Student Self-Test":
         <div class="info-box">
             <strong>How to Answer:</strong><br>
             • All questions use a scale from 0 to 10<br>
-            • <strong>0 = Never / Not at all / Very Low</strong><br>
-            • <strong>10 = Always / Very severely / Very High</strong><br>
-            • Slide to the right for higher frequency or severity<br>
-            • Gender and Age use special inputs (dropdown and number)
+            • 0 = Never / Not at all / Very Low<br>
+            • 10 = Always / Very severely / Very High<br>
+            • Slide to the right for higher frequency or severity
         </div>
         """, unsafe_allow_html=True)
         
@@ -617,14 +696,13 @@ elif page == "📝 Student Self-Test":
         col1, col2 = st.columns(2)
         user_input = {}
         
-        # ============ REMOVE DUPLICATE QUESTIONS ============
-        # Remove duplicates like anxiety appearing twice
+        # ============ HIDE REPEATED QUESTIONS ============
         unique_features = []
         seen_features = set()
         duplicate_features = []
         
         for feature in st.session_state.feature_names:
-            # Clean the feature name 
+            # Clean the feature name (remove .1, .2, etc.)
             clean_feature = feature.split('.')[0] if '.' in feature else feature
             
             if clean_feature.lower() not in seen_features:
@@ -640,7 +718,7 @@ elif page == "📝 Student Self-Test":
         def is_age_feature(feature_name):
             return 'age' in feature_name.lower()
         
-        # Display questions using actual feature names
+        # Display ONLY unique questions (no duplicates)
         for idx, feature in enumerate(unique_features):
             # Determine column placement
             with col1 if idx % 2 == 0 else col2:
@@ -648,7 +726,7 @@ elif page == "📝 Student Self-Test":
                 # Check if this is Gender feature
                 if is_gender_feature(feature):
                     selected = st.selectbox(
-                        f"**{feature}**",
+                        feature,
                         options=['Male', 'Female', 'Prefer not to say'],
                         help="Select your gender",
                         key=f"select_gender"
@@ -660,7 +738,7 @@ elif page == "📝 Student Self-Test":
                 # Check if this is Age feature
                 elif is_age_feature(feature):
                     user_input[feature] = st.number_input(
-                        f"**{feature}**",
+                        feature,
                         min_value=16,
                         max_value=100,
                         value=22,
@@ -679,22 +757,19 @@ elif page == "📝 Student Self-Test":
                 
                 # Regular slider for all other features (0-10 scale)
                 else:
-                    # Create a friendly display name from the feature
-                    display_name = feature.replace('_', ' ').title()
-                    
                     user_input[feature] = st.slider(
-                        f"**{display_name}**",
+                        feature,
                         min_value=0,
                         max_value=10,
                         value=5,
                         step=1,
-                        help=f"0 = Never/Low, 10 = Always/High - Rate: {display_name}",
-                        key=f"slider_{idx}_{feature[:20]}"
+                        help=f"0 = Never/Low, 10 = Always/High",
+                        key=f"slider_{idx}_{feature[:30]}"
                     )
                     
                     # Show interpretation based on score
                     if user_input[feature] <= 2:
-                        st.caption(f"Score: {user_input[feature]} - Low / Never / Not at all")
+                        st.caption(f"Score: {user_input[feature]} - Low / Never")
                     elif user_input[feature] <= 4:
                         st.caption(f"Score: {user_input[feature]} - Mild / Occasionally")
                     elif user_input[feature] <= 6:
@@ -704,8 +779,7 @@ elif page == "📝 Student Self-Test":
                     else:
                         st.caption(f"Score: {user_input[feature]} - Severe / Always")
         
-        # ============ HANDLE DUPLICATE FEATURES FOR MODEL ============
-        # For duplicate features, copy the value from the first occurrence
+        # ============ HANDLE HIDDEN DUPLICATE FEATURES FOR MODEL ============
         for duplicate in duplicate_features:
             # Find the original feature (without .1, .2)
             clean_dup = duplicate.split('.')[0] if '.' in duplicate else duplicate
@@ -730,11 +804,6 @@ elif page == "📝 Student Self-Test":
             with st.spinner("Analyzing your responses with AI model..."):
                 # Create dataframe with user inputs
                 input_df = pd.DataFrame([user_input])
-                
-                # Debug info (collapsible)
-                with st.expander("Debug Information (Click to expand)"):
-                    st.write("**Features sent to model:**")
-                    st.dataframe(pd.DataFrame([user_input]).head())
                 
                 # Make prediction
                 prediction, probabilities = predict_stress(
@@ -761,13 +830,23 @@ elif page == "📝 Student Self-Test":
                     else:
                         stress_level = str(pred_value).strip()
                     
+                    # Store in session state for dashboard charts
+                    if 'test_history' not in st.session_state:
+                        st.session_state.test_history = []
+                    
+                    st.session_state.test_history.append({
+                        'timestamp': pd.Timestamp.now(),
+                        'stress_level': stress_level,
+                        'responses': user_input.copy()
+                    })
+                    
                     # Display prediction with styling
                     if stress_level.lower() == "low":
                         st.markdown("""
                         <div class="prediction-low">
-                            <h2>✅ Low Stress Level Detected</h2>
+                            <h2>Low Stress Level Detected</h2>
                             <p>Great news! Your responses indicate you're managing stress well.</p>
-                            <p>💚 Keep up the healthy habits!</p>
+                            <p>Keep up the healthy habits!</p>
                             <hr>
                             <p><strong>What this means:</strong> Your current coping strategies are working well.</p>
                         </div>
@@ -777,9 +856,9 @@ elif page == "📝 Student Self-Test":
                     elif stress_level.lower() == "moderate":
                         st.markdown("""
                         <div class="prediction-moderate">
-                            <h2>⚠️ Moderate Stress Level Detected</h2>
+                            <h2>Moderate Stress Level Detected</h2>
                             <p>You're experiencing some stress, but there are effective ways to manage it.</p>
-                            <p>💛 With some adjustments, you can reduce your stress levels.</p>
+                            <p>With some adjustments, you can reduce your stress levels.</p>
                             <hr>
                             <p><strong>What this means:</strong> Your stress levels are elevated but manageable.</p>
                         </div>
@@ -788,9 +867,9 @@ elif page == "📝 Student Self-Test":
                     elif stress_level.lower() == "high":
                         st.markdown("""
                         <div class="prediction-high">
-                            <h2>🔴 High Stress Level Detected</h2>
+                            <h2>High Stress Level Detected</h2>
                             <p>Your responses indicate significant stress that may be affecting your well-being.</p>
-                            <p>❤️ It's important to take action now.</p>
+                            <p>It's important to take action now.</p>
                             <hr>
                             <p><strong>What this means:</strong> Your stress levels are concerning.</p>
                         </div>
@@ -817,25 +896,25 @@ elif page == "📝 Student Self-Test":
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # ==================== RECOMMENDATIONS ====================
-                    st.subheader("💡 Personalized Recommendations")
+                    st.subheader("Personalized Recommendations")
                     
                     if stress_level.lower() == "high":
                         st.error("""
-                        ### 🚨 IMMEDIATE ACTIONS RECOMMENDED
+                        ### IMMEDIATE ACTIONS RECOMMENDED
                         
                         **1. Professional Support (Priority)**
-                        - **Talk to a counselor** or mental health professional
-                        - **Call a mental health helpline** if you need immediate support
+                        - Talk to a counselor or mental health professional
+                        - Call a mental health helpline if you need immediate support
                         
                         **2. Immediate Self-Care (Today)**
-                        - **Practice deep breathing:** Inhale 4 sec, hold 4 sec, exhale 4 sec
-                        - **Prioritize sleep** - aim for 7-9 hours tonight
-                        - **Take a 10-15 minute walk** outside
+                        - Practice deep breathing: Inhale 4 sec, hold 4 sec, exhale 4 sec
+                        - Prioritize sleep - aim for 7-9 hours tonight
+                        - Take a 10-15 minute walk outside
                         
                         **3. Short-term Stress Management**
-                        - **Break large tasks** into smaller steps
-                        - **Set realistic daily goals**
-                        - **Reach out to trusted friends or family**
+                        - Break large tasks into smaller steps
+                        - Set realistic daily goals
+                        - Reach out to trusted friends or family
                         """)
                         
                         st.info("""
@@ -847,17 +926,17 @@ elif page == "📝 Student Self-Test":
                     
                     elif stress_level.lower() == "moderate":
                         st.warning("""
-                        ### 📋 RECOMMENDED ACTIONS
+                        ### RECOMMENDED ACTIONS
                         
                         **Daily Habits to Reduce Stress**
-                        - **5-10 minutes of meditation** daily
-                        - **Maintain consistent sleep schedule** (7-9 hours)
-                        - **20-30 minutes of physical activity** daily
+                        - 5-10 minutes of meditation daily
+                        - Maintain consistent sleep schedule (7-9 hours)
+                        - 20-30 minutes of physical activity daily
                         
                         **Work/Life Balance**
-                        - **Create a realistic daily schedule**
-                        - **Take regular breaks** (5 min every hour)
-                        - **Set achievable goals**
+                        - Create a realistic daily schedule
+                        - Take regular breaks (5 min every hour)
+                        - Set achievable goals
                         """)
                         
                         st.info("""
@@ -868,17 +947,17 @@ elif page == "📝 Student Self-Test":
                     
                     else:  # Low Stress
                         st.success("""
-                        ### 🌟 MAINTAIN YOUR HEALTHY HABITS
+                        ### MAINTAIN YOUR HEALTHY HABITS
                         
                         **Keep Up the Good Work**
-                        - **Continue your current healthy routines**
-                        - **Keep monitoring your stress levels** weekly
-                        - **Practice mindfulness** to build resilience
+                        - Continue your current healthy routines
+                        - Keep monitoring your stress levels weekly
+                        - Practice mindfulness to build resilience
                         
                         **Prevention Strategies**
-                        - **Practice gratitude journaling**
-                        - **Stay connected with friends and family**
-                        - **Schedule regular self-care** activities
+                        - Practice gratitude journaling
+                        - Stay connected with friends and family
+                        - Schedule regular self-care activities
                         """)
                         
                         st.info("""
