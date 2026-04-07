@@ -147,7 +147,7 @@ def validate_uploaded_files(model_file, scaler_file, label_encoder_file, feature
 
 # ================================= SIDEBAR =========================================
 with st.sidebar:
-    st.image("https://i.pinimg.com/736x/ed/1c/2d/ed1c2d412a705ba463c49ad8f27ace89.jpg", width=200)
+    #st.image("https://i.pinimg.com/736x/ed/1c/2d/ed1c2d412a705ba463c49ad8f27ace89.jpg", width=200)
     st.markdown("# XAI Stress Detection")
     st.markdown("---")
     
