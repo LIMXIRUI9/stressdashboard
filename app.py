@@ -417,8 +417,83 @@ if page == "🏠 Dashboard Overview":
                 st.info("No prediction data yet. Complete a Self-Test or upload a Batch CSV!")
         
         with col2:
-            # Empty column for spacing (or you can add something else here)
-            st.empty()
+            # CHART: STRESS BY CATEGORY (BAR CHART)
+            # Category mapping for your questions
+            category_mapping = {
+                'Physical Symptoms': ['Have you noticed a rapid heartbeat or palpitations?', 
+                                      'Have you been getting headaches more often than usual?',
+                                      'Have you been experiencing any illness or health issues?',
+                                      'Have you gained/lost weight?'],
+                
+                'Mental/Emotional': ['Have you been dealing with anxiety or tension recently?',
+                                     'Do you get irritated easily?',
+                                     'Have you been feeling sadness or low mood?',
+                                     'Do you often feel lonely or isolated?'],
+                
+                'Academic': ['Do you have trouble concentrating on your academic tasks?',
+                             'Do you feel overwhelmed with your academic workload?',
+                             'Do you lack confidence in your academic performance?',
+                             'Do you lack confidence in your choice of academic subjects?',
+                             'Do you attend classes regularly?',
+                             'Academic and extracurricular activities conflicting for you?'],
+                
+                'Social/Environment': ['Are you in competition with your peers, and does it affect you?',
+                                       'Do you find that your relationship often causes you stress?',
+                                       'Are you facing any difficulties with your professors or instructors?',
+                                       'Is your working environment unpleasant or stressful?',
+                                       'Is your hostel or home environment causing you difficulties?'],
+                
+                'Lifestyle': ['Do you face any sleep problems or difficulties falling asleep?',
+                              'Do you struggle to find time for relaxation and leisure activities?']
+            }
+            
+            # Calculate average stress per category from self-test history
+            category_scores = {category: [] for category in category_mapping.keys()}
+            
+            if 'test_history' in st.session_state and st.session_state.test_history:
+                for test in st.session_state.test_history:
+                    if 'responses' in test:
+                        for category, questions in category_mapping.items():
+                            category_total = 0
+                            question_count = 0
+                            for question in questions:
+                                # Find matching feature in responses
+                                for resp_feature, value in test['responses'].items():
+                                    if question.lower() in resp_feature.lower() or resp_feature.lower() in question.lower():
+                                        if isinstance(value, (int, float)):
+                                            category_total += value
+                                            question_count += 1
+                                        break
+                            if question_count > 0:
+                                category_scores[category].append(category_total / question_count)
+                
+                # Calculate average for each category
+                avg_category_scores = {}
+                for category, scores in category_scores.items():
+                    if scores:
+                        avg_category_scores[category] = np.mean(scores)
+                    else:
+                        avg_category_scores[category] = 0
+                
+                if avg_category_scores:
+                    category_df = pd.DataFrame({
+                        'Category': list(avg_category_scores.keys()),
+                        'Average Stress Score': list(avg_category_scores.values())
+                    }).sort_values('Average Stress Score', ascending=True)
+                    
+                    fig_category = px.bar(category_df, x='Average Stress Score', y='Category',
+                                         orientation='h', title="Average Stress by Category (0-10 scale)",
+                                         color='Average Stress Score', 
+                                         color_continuous_scale='RdYlGn_r',
+                                         text='Average Stress Score',
+                                         range_color=[0, 10])
+                    fig_category.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+                    fig_category.update_layout(height=400, xaxis_title="Average Stress Score")
+                    st.plotly_chart(fig_category, use_container_width=True)
+                else:
+                    st.info("No category data available yet. Complete more Self-Tests!")
+            else:
+                st.info("Complete a Self-Test to see stress breakdown by category!")
         
         st.markdown("---")
         
