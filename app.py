@@ -303,10 +303,13 @@ if page == "🏠 Dashboard Overview":
         
         This dashboard helps you detect stress levels using machine learning with explainable AI.
         
-        To get started:
-        1. Go to Student Self-Test to assess individual stress level
-        2. Use Batch Prediction for multiple students
-        3. View SHAP Explanations to understand predictions
+        **To get started:**
+        1. Verify that all required models are successfully loaded. If not, please refresh the page.
+        2. Navigate to 'Student Self-Test' to conduct an individual stress assessment.
+        2. Utilize 'Batch Prediction' for processing multiple student records via CSV file.
+        3. Explore 'SHAP Explanations' to understand the factors influencing predictions.
+        
+        **Note:** Model files are automatically loaded, manual loading files is not allowed.
         """)
     else:
         # ============ TOP METRICS ROW ============
@@ -906,7 +909,7 @@ elif page == "📝 Student Self-Test":
 
                 class PDF(FPDF):
                     def header(self):
-                        # Add logo/header background
+                        # Add header background
                         self.set_fill_color(46, 134, 171)
                         self.rect(0, 0, 210, 40, 'F')
                         
@@ -974,7 +977,7 @@ elif page == "📝 Student Self-Test":
                 # ASSESSMENT RESULTS SECTION
                 pdf.section_title("ASSESSMENT RESULTS")
 
-                # Stress level with colored box
+                # Stress level 
                 stress_color = {
                     'low': (40, 167, 69),
                     'moderate': (255, 193, 7),
@@ -988,7 +991,6 @@ elif page == "📝 Student Self-Test":
 
                 # CONFIDENCE SCORES SECTION
                 pdf.section_title("CONFIDENCE SCORES")
-
                 # Add explanation
                 pdf.add_explanation("The confidence scores below indicate how certain the model is about each stress level prediction. Higher percentages mean the model is more confident in that classification.")
 
@@ -1003,7 +1005,6 @@ elif page == "📝 Student Self-Test":
 
                 # Add interpretation guide
                 pdf.add_explanation("Interpretation: Low confidence (<50%) suggests uncertainty, while high confidence (>70%) indicates strong prediction certainty.")
-
                 pdf.ln(5)
                 pdf.section_title("RESPONSES SUMMARY")
                 pdf.add_explanation("Your responses to each question are summarized below. Scores range from 0 (Never/Low) to 10 (Always/High).")
@@ -1015,12 +1016,12 @@ elif page == "📝 Student Self-Test":
                 for display_feature in st.session_state.display_features:
                     for orig_feature, val in user_input.items():
                         if display_feature.lower() in orig_feature.lower():
-                            # Convert gender code to text (black color)
+                            # Convert gender code to text 
                             if 'gender' in display_feature.lower():
                                 display_value = gender_display.get(val, str(val))
                                 interpretation = ""
                                 numeric_val = None
-                            # Handle age specially (black color)
+                            # Handle age specially
                             elif 'age' in display_feature.lower():
                                 display_value = str(val)
                                 if val < 18:
@@ -1102,7 +1103,7 @@ elif page == "📝 Student Self-Test":
                         pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
                         pdf.ln(2)
 
-                # RECOMMENDATIONS SECTION - Standardized design for all stress levels
+                # RECOMMENDATIONS SECTION 
                 pdf.ln(5)
                 pdf.section_title("RECOMMENDATIONS")
 
@@ -1185,7 +1186,7 @@ elif page == "📝 Student Self-Test":
                 else:
                     pdf.multi_cell(180, 4, "Maintaining these habits will help you stay resilient during challenging times. Prevention is the best strategy!", 0, 1)
 
-                # Separate note as plain italic text
+                # Separate note
                 pdf.ln(10)
                 pdf.set_font('Arial', 'I', 8)
                 pdf.set_text_color(100, 100, 100)
@@ -1198,13 +1199,14 @@ elif page == "📝 Student Self-Test":
                 st.download_button(
                     label="Download Results as PDF",
                     data=pdf_output,
-                    file_name=f"stress_assessment_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    file_name=f"stress_assessment_{datetime.now().strftime('%d%m%Y')}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                     key="download_pdf_button"
                 )
 
                 st.caption("Download your assessment results as a PDF report")
+
 # ==================================== PAGE 4: SHAP EXPLANATIONS ==================================================
 elif page == "🔍 SHAP Explanations":
     st.header("Explainable AI - SHAP Analysis")
