@@ -86,9 +86,8 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-# ==================== END OF CSS STYLING DESIGN ====================
 
-# ==================== HELPER FUNCTION FOR LABEL ENCODER ====================
+# ==================== HELPER FUNCTIONS ====================
 def get_label_encoder_classes(encoder):
     """Safely get classes from label encoder regardless of format"""
     if hasattr(encoder, 'classes_'):
@@ -98,7 +97,7 @@ def get_label_encoder_classes(encoder):
     elif isinstance(encoder, list):
         return encoder
     else:
-        return ['Low', 'Moderate', 'High']  # Default fallback
+        return ['Low', 'Moderate', 'High']
 
 def safe_inverse_transform(encoder, predictions):
     """Safely inverse transform predictions"""
@@ -118,46 +117,47 @@ def safe_inverse_transform(encoder, predictions):
         st.error(f"Error in inverse transform: {e}")
         return predictions
 
-def validate_uploaded_files(model_file, scaler_file, label_encoder_file, feature_names_file):
-    """Validate uploaded files before loading"""
-    errors = []
-    warnings = []
+def get_unique_display_features(feature_names):
+    """Get unique feature names for display (removes .1, .2 duplicates)"""
+    unique_features = []
+    seen_features = set()
     
-    # Check file extensions
-    if model_file and not (model_file.name.endswith('.pkl') or model_file.name.endswith('.joblib')):
-        warnings.append(f"Model file '{model_file.name}' has unusual extension. Expected .pkl or .joblib")
+    for feature in feature_names:
+        # Clean the feature name (remove .1, .2, etc.)
+        clean_feature = feature.split('.')[0] if '.' in feature else feature
+        
+        if clean_feature.lower() not in seen_features:
+            unique_features.append(clean_feature)
+            seen_features.add(clean_feature.lower())
     
-    if scaler_file and not (scaler_file.name.endswith('.pkl') or scaler_file.name.endswith('.joblib')):
-        warnings.append(f"Scaler file '{scaler_file.name}' has unusual extension. Expected .pkl or .joblib")
+    return unique_features
+
+def create_feature_mapping(original_features):
+    """Create mapping from display feature to all original feature variants"""
+    feature_mapping = {}
     
-    if label_encoder_file and not label_encoder_file.name.endswith('.pkl'):
-        warnings.append(f"Label encoder file '{label_encoder_file.name}' should be .pkl format")
+    for feature in original_features:
+        # Get base name (remove .1, .2, .3 suffixes)
+        base_name = feature.split('.')[0] if '.' in feature else feature
+        
+        if base_name not in feature_mapping:
+            feature_mapping[base_name] = []
+        feature_mapping[base_name].append(feature)
     
-    if feature_names_file and not feature_names_file.name.endswith('.pkl'):
-        warnings.append(f"Feature names file '{feature_names_file.name}' should be .pkl format")
-    
-    # Check file sizes (warn if suspiciously small)
-    if model_file and model_file.size < 1000:  # Less than 1KB
-        warnings.append(f"Model file '{model_file.name}' is very small ({model_file.size} bytes). This might be corrupted or empty.")
-    
-    if scaler_file and scaler_file.size < 100:
-        warnings.append(f"Scaler file '{scaler_file.name}' is very small ({scaler_file.size} bytes).")
-    
-    return errors, warnings
+    return feature_mapping
 
 # ================================= SIDEBAR =========================================
 with st.sidebar:
-    #st.image("https://i.pinimg.com/736x/ed/1c/2d/ed1c2d412a705ba463c49ad8f27ace89.jpg", width=200)
     st.markdown("# XAI Stress Detection")
     st.markdown("---")
     
-    # Navigation
+    # Navigation with emojis
     st.markdown("### Navigation")
     page = st.sidebar.radio(
         "Select Module:",
         [
             "🏠 Dashboard Overview",
-            "📤 Upload Model Files",
+            "📤 Model Files Status",
             "📝 Student Self-Test",
             "🔍 SHAP Explanations",
             "📂 Batch Prediction"
@@ -170,13 +170,13 @@ with st.sidebar:
     st.markdown("### System Information")
     with st.expander("How to Use"):
         st.markdown("""
-        **Step 1:** Upload your trained model files in 'Upload Model Files' section
-        
-        **Step 2:** Go to 'Student Self-Test' to assess individual stress level
-        
-        **Step 3:** Use 'Batch Prediction' for multiple students via CSV upload
-        
-        **Step 4:** View 'SHAP Explanations' to understand predictions
+        **Step 1:** Go to 'Student Self-Test' to assess individual stress level
+    
+        **Step 2:** Use 'Batch Prediction' for multiple students via CSV upload
+    
+        **Step 3:** View 'SHAP Explanations' to understand predictions
+    
+        **Step 4:** Check 'Dashboard Overview' to see statistics and trends
         """)
     
     with st.expander("About"):
@@ -196,44 +196,89 @@ def auto_load_models():
     models_path = 'models'
     
     if not os.path.exists(models_path):
-        return None, None, None, None, None, None, f"Models folder not found"
+        return None, None, None, None, None, None, "Models folder not found"
     
     try:
-        # Try loading with joblib first, then pickle for each file
+        # Load model
         model_path = os.path.join(models_path, 'adaboost_model.pkl')
-        try:
-            model = joblib.load(model_path)
-        except:
-            with open(model_path, 'rb') as f:
-                model = pickle.load(f)
+        if os.path.exists(model_path):
+            try:
+                model = joblib.load(model_path)
+            except:
+                with open(model_path, 'rb') as f:
+                    model = pickle.load(f)
+        else:
+            model_path = os.path.join(models_path, 'adaboost_model.joblib')
+            if os.path.exists(model_path):
+                model = joblib.load(model_path)
+            else:
+                return None, None, None, None, None, None, "Model file not found"
         
+        # Load scaler
         scaler_path = os.path.join(models_path, 'scaler.pkl')
-        try:
-            scaler = joblib.load(scaler_path)
-        except:
-            with open(scaler_path, 'rb') as f:
-                scaler = pickle.load(f)
+        if os.path.exists(scaler_path):
+            try:
+                scaler = joblib.load(scaler_path)
+            except:
+                with open(scaler_path, 'rb') as f:
+                    scaler = pickle.load(f)
+        else:
+            scaler_path = os.path.join(models_path, 'scaler.joblib')
+            if os.path.exists(scaler_path):
+                scaler = joblib.load(scaler_path)
+            else:
+                return None, None, None, None, None, None, "Scaler file not found"
         
+        # Load label encoder
         label_encoder_path = os.path.join(models_path, 'label_encoder.pkl')
-        with open(label_encoder_path, 'rb') as f:
-            label_encoder = pickle.load(f)
+        if os.path.exists(label_encoder_path):
+            with open(label_encoder_path, 'rb') as f:
+                label_encoder = pickle.load(f)
+        else:
+            return None, None, None, None, None, None, "Label encoder file not found"
         
-        with open(os.path.join(models_path, 'feature_names.pkl'), 'rb') as f:
-            feature_names = pickle.load(f)
+        # Load feature names (keep ALL original features)
+        feature_names_path = os.path.join(models_path, 'feature_names.pkl')
+        if os.path.exists(feature_names_path):
+            with open(feature_names_path, 'rb') as f:
+                original_feature_names = pickle.load(f)
+        else:
+            return None, None, None, None, None, None, "Feature names file not found"
         
+        # Load SHAP importance
         importance_df = None
         importance_path = os.path.join(models_path, 'shap_global_importance.csv')
         if os.path.exists(importance_path):
             importance_df = pd.read_csv(importance_path)
         
-        return model, scaler, label_encoder, feature_names, None, importance_df, None
+        return model, scaler, label_encoder, original_feature_names, None, importance_df, None
         
     except Exception as e:
         return None, None, None, None, None, None, f"Error: {str(e)}"
 
-model, scaler, label_encoder, feature_names, shap_values, importance_df, load_error = auto_load_models()
+# Load models
+model, scaler, label_encoder, original_feature_names, shap_values, importance_df, load_error = auto_load_models()
 
-# =================================== FUNCTIONS ===================================================
+# Initialize session state for models (keep ALL original features)
+if 'model' not in st.session_state:
+    st.session_state.model = model
+    st.session_state.scaler = scaler
+    st.session_state.label_encoder = label_encoder
+    st.session_state.original_feature_names = original_feature_names  # All features including duplicates
+    st.session_state.importance_df = importance_df
+    
+    # Create display features and mapping if models are loaded
+    if original_feature_names is not None:
+        st.session_state.display_features = get_unique_display_features(original_feature_names)
+        st.session_state.feature_mapping = create_feature_mapping(original_feature_names)
+
+# Initialize history
+if 'test_history' not in st.session_state:
+    st.session_state.test_history = []
+if 'prediction_history' not in st.session_state:
+    st.session_state.prediction_history = []
+
+# =================================== PREDICTION FUNCTION ===================================================
 def predict_stress(features_df, model, scaler, label_encoder, feature_names):
     try:
         # Ensure we only use the features the model expects
@@ -252,48 +297,48 @@ if page == "🏠 Dashboard Overview":
     st.markdown('<h1 class="main-header">XAI Stress Detection Dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Explainable AI Dashboard | AdaBoost + SHAP</p>', unsafe_allow_html=True)
     
-    # Check if model is loaded
-    if 'model' not in st.session_state or st.session_state.model is None:
+    if st.session_state.model is None:
         st.info("""
-        ### Welcome to the XAI Stress Detection Dashboard!
+        **Welcome to the XAI Stress Detection Dashboard!**
         
         This dashboard helps you detect stress levels using machine learning with explainable AI.
         
-        **To get started:**
-        1. Go to **Upload Model Files** in the sidebar
-        2. Upload your trained AdaBoost model, scaler, label encoder, and feature names
-        3. Then use the **Student Self-Test** or **Batch Prediction** features
-        4. Charts will automatically populate with real data from your predictions!
+        To get started:
+        1. Go to Student Self-Test to assess individual stress level
+        2. Use Batch Prediction for multiple students
+        3. View SHAP Explanations to understand predictions
         """)
     else:
         # ============ TOP METRICS ROW ============
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            # Count unique features (remove .1 duplicates)
-            unique_features = set()
-            for f in st.session_state.feature_names:
-                clean_f = f.split('.')[0] if '.' in f else f
-                unique_features.add(clean_f.lower())
-            st.metric("Total Features", len(st.session_state.feature_names))
-            st.caption(f"({len(unique_features)} unique)")
+            total_features = len(st.session_state.original_feature_names)
+            unique_features = len(st.session_state.display_features)
+            st.metric("Total Features", f"{total_features}")
+            st.caption(f"({unique_features} unique)")
         
         with col2:
-            if 'label_encoder' in st.session_state:
+            if st.session_state.label_encoder is not None:
                 classes = get_label_encoder_classes(st.session_state.label_encoder)
                 st.metric("Stress Levels", len(classes))
                 st.caption("Low | Moderate | High")
         
         with col3:
-            # Count total predictions made from real data
             total_predictions = 0
+            self_test_count = 0
+            batch_count = 0
+            
             if 'prediction_history' in st.session_state:
                 for batch in st.session_state.prediction_history:
-                    total_predictions += len(batch['data'])
+                    batch_count += len(batch['data'])
+            
             if 'test_history' in st.session_state:
-                total_predictions += len(st.session_state.test_history)
+                self_test_count = len(st.session_state.test_history)
+            
+            total_predictions = self_test_count + batch_count
             st.metric("Total Predictions", total_predictions)
-            st.caption("From Self-Tests & Batch")
+            st.caption(f"Self-Test: {self_test_count} | Batch: {batch_count}")
         
         with col4:
             st.metric("Model", "AdaBoost")
@@ -301,17 +346,14 @@ if page == "🏠 Dashboard Overview":
         
         st.markdown("---")
         
-        # ============ ROW 1: AGE AND GENDER ANALYSIS ============
+        # ============ AGE AND GENDER ANALYSIS ============
         st.subheader("Age and Gender Analysis")
         st.caption("Age distribution and gender breakdown from self-tests")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            # CHART 1: AGE DISTRIBUTION (BAR CHART)
             ages = []
-            
-            # Collect age data from self-test history
             if 'test_history' in st.session_state:
                 for test in st.session_state.test_history:
                     if 'responses' in test:
@@ -323,16 +365,12 @@ if page == "🏠 Dashboard Overview":
             
             if ages:
                 age_df = pd.DataFrame({'Age': ages})
-                
-                # Create age groups/bins
                 bins = [16, 20, 25, 30, 35, 40, 100]
                 labels = ['16-20', '21-25', '26-30', '31-35', '36-40', '40+']
                 age_df['Age Group'] = pd.cut(age_df['Age'], bins=bins, labels=labels, right=False)
-                
                 age_group_counts = age_df['Age Group'].value_counts().reset_index()
                 age_group_counts.columns = ['Age Group', 'Count']
                 age_group_counts = age_group_counts.sort_values('Age Group')
-                
                 fig_age = px.bar(age_group_counts, x='Age Group', y='Count',
                                 title=f"Age Distribution ({len(ages)} students)",
                                 color='Count', color_continuous_scale='Blues',
@@ -344,10 +382,8 @@ if page == "🏠 Dashboard Overview":
                 st.info("No age data yet. Complete a Self-Test to see age distribution!")
         
         with col2:
-            # CHART 2: GENDER DISTRIBUTION (PIE CHART)
             gender_counts = {'Male': 0, 'Female': 0, 'Prefer not to say': 0}
             
-            # Collect gender data from self-test history
             if 'test_history' in st.session_state:
                 for test in st.session_state.test_history:
                     if 'responses' in test:
@@ -379,14 +415,13 @@ if page == "🏠 Dashboard Overview":
         
         st.markdown("---")
         
-        # ============ ROW 2: STRESS DISTRIBUTION ANALYSIS ============
+        # ============ STRESS DISTRIBUTION ANALYSIS ============
         st.subheader("Stress Distribution Analysis")
         st.caption("Stress levels from predictions and self-tests")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            # CHART 3: STRESS DISTRIBUTION (BAR CHART)
             stress_counts = {'Low': 0, 'Moderate': 0, 'High': 0}
             
             if 'prediction_history' in st.session_state:
@@ -417,106 +452,21 @@ if page == "🏠 Dashboard Overview":
                 st.info("No prediction data yet. Complete a Self-Test or upload a Batch CSV!")
         
         with col2:
-            # CHART: STRESS BY CATEGORY (BAR CHART)
-            # Category mapping for your questions
-            category_mapping = {
-                'Physical Symptoms': ['Have you noticed a rapid heartbeat or palpitations?', 
-                                      'Have you been getting headaches more often than usual?',
-                                      'Have you been experiencing any illness or health issues?',
-                                      'Have you gained/lost weight?'],
-                
-                'Mental/Emotional': ['Have you been dealing with anxiety or tension recently?',
-                                     'Do you get irritated easily?',
-                                     'Have you been feeling sadness or low mood?',
-                                     'Do you often feel lonely or isolated?'],
-                
-                'Academic': ['Do you have trouble concentrating on your academic tasks?',
-                             'Do you feel overwhelmed with your academic workload?',
-                             'Do you lack confidence in your academic performance?',
-                             'Do you lack confidence in your choice of academic subjects?',
-                             'Do you attend classes regularly?',
-                             'Academic and extracurricular activities conflicting for you?'],
-                
-                'Social/Environment': ['Are you in competition with your peers, and does it affect you?',
-                                       'Do you find that your relationship often causes you stress?',
-                                       'Are you facing any difficulties with your professors or instructors?',
-                                       'Is your working environment unpleasant or stressful?',
-                                       'Is your hostel or home environment causing you difficulties?'],
-                
-                'Lifestyle': ['Do you face any sleep problems or difficulties falling asleep?',
-                              'Do you struggle to find time for relaxation and leisure activities?']
-            }
-            
-            # Calculate average stress per category from self-test history
-            category_scores = {category: [] for category in category_mapping.keys()}
-            
-            if 'test_history' in st.session_state and st.session_state.test_history:
-                for test in st.session_state.test_history:
-                    if 'responses' in test:
-                        for category, questions in category_mapping.items():
-                            category_total = 0
-                            question_count = 0
-                            for question in questions:
-                                # Find matching feature in responses
-                                for resp_feature, value in test['responses'].items():
-                                    if question.lower() in resp_feature.lower() or resp_feature.lower() in question.lower():
-                                        if isinstance(value, (int, float)):
-                                            category_total += value
-                                            question_count += 1
-                                        break
-                            if question_count > 0:
-                                category_scores[category].append(category_total / question_count)
-                
-                # Calculate average for each category
-                avg_category_scores = {}
-                for category, scores in category_scores.items():
-                    if scores:
-                        avg_category_scores[category] = np.mean(scores)
-                    else:
-                        avg_category_scores[category] = 0
-                
-                if avg_category_scores:
-                    category_df = pd.DataFrame({
-                        'Category': list(avg_category_scores.keys()),
-                        'Average Stress Score': list(avg_category_scores.values())
-                    }).sort_values('Average Stress Score', ascending=True)
-                    
-                    fig_category = px.bar(category_df, x='Average Stress Score', y='Category',
-                                         orientation='h', title="Average Stress by Category (0-10 scale)",
-                                         color='Average Stress Score', 
-                                         color_continuous_scale='RdYlGn_r',
-                                         text='Average Stress Score',
-                                         range_color=[0, 10])
-                    fig_category.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-                    fig_category.update_layout(height=400, xaxis_title="Average Stress Score")
-                    st.plotly_chart(fig_category, use_container_width=True)
-                else:
-                    st.info("No category data available yet. Complete more Self-Tests!")
+            if st.session_state.importance_df is not None:
+                importance_df = st.session_state.importance_df.head(10)
+                fig_importance = px.bar(importance_df, x='Importance', y='Feature', 
+                                       orientation='h', title="Top 10 Features Impacting Stress",
+                                       color='Importance', color_continuous_scale='Reds',
+                                       text='Importance')
+                fig_importance.update_traces(texttemplate='%{text:.3f}', textposition='outside')
+                fig_importance.update_layout(height=400, xaxis_title="SHAP Importance Score")
+                st.plotly_chart(fig_importance, use_container_width=True)
             else:
-                st.info("Complete a Self-Test to see stress breakdown by category!")
+                st.info("Upload SHAP importance file to see feature importance chart.")
         
         st.markdown("---")
         
-        # ============ ROW 3: FEATURE ANALYSIS ============
-        st.subheader("Feature Analysis")
-        st.caption("Top factors affecting stress prediction (SHAP-based)")
-        
-        # CHART 4: FEATURE IMPORTANCE (BAR CHART) - Full width or single column
-        if 'importance_df' in st.session_state and st.session_state.importance_df is not None:
-            importance_df = st.session_state.importance_df.head(10)
-            fig_importance = px.bar(importance_df, x='Importance', y='Feature', 
-                                   orientation='h', title="Top 10 Features Impacting Stress",
-                                   color='Importance', color_continuous_scale='Reds',
-                                   text='Importance')
-            fig_importance.update_traces(texttemplate='%{text:.3f}', textposition='outside')
-            fig_importance.update_layout(height=500, xaxis_title="SHAP Importance Score")
-            st.plotly_chart(fig_importance, use_container_width=True)
-        else:
-            st.info("Upload 'shap_global_importance.csv' in Upload Model Files to see feature importance chart.")
-        
-        st.markdown("---")
-        
-        # ============ ROW 4: PREDICTIONS OVER TIME ============
+        # ============ PREDICTIONS OVER TIME ============
         st.subheader("Predictions Over Time")
         st.caption("Track stress patterns over time from your prediction history")
         
@@ -542,17 +492,12 @@ if page == "🏠 Dashboard Overview":
         if timeline_data:
             timeline_df = pd.DataFrame(timeline_data)
             timeline_df = timeline_df.sort_values('Date')
-            
-            # Convert stress levels to numeric for better y-axis
             stress_order = {'Low': 0, 'Moderate': 1, 'High': 2}
             timeline_df['Stress_Numeric'] = timeline_df['Stress Level'].map(stress_order)
-            
             fig_timeline = px.line(timeline_df, x='Date', y='Stress_Numeric', 
                                    color='Type', title="Stress Level Trends Over Time",
                                    markers=True,
                                    color_discrete_map={'Self-Test': '#2E86AB', 'Batch': '#F39C12'})
-            
-            # Update y-axis to show stress level names instead of numbers
             fig_timeline.update_layout(
                 yaxis_title="Stress Level",
                 yaxis=dict(
@@ -568,7 +513,7 @@ if page == "🏠 Dashboard Overview":
         
         st.markdown("---")
         
-        # ============ ROW 5: RECENT ACTIVITY ============
+        # ============ RECENT ACTIVITY ============
         st.subheader("Recent Activity")
         
         col1, col2 = st.columns(2)
@@ -598,275 +543,178 @@ if page == "🏠 Dashboard Overview":
                     st.caption(f"{time_str}: {len(batch['data'])} students - Low: {counts.get('Low', 0)}, Moderate: {counts.get('Moderate', 0)}, High: {counts.get('High', 0)}")
             else:
                 st.info("No batch prediction history yet.")
-                
-# =============================== END OF PAGE 1: DASHBOARD OVERVIEW ========================================
 
 # ==================================== PAGE 2: UPLOAD MODEL FILES =========================================
-elif page == "📤 Upload Model Files":
-    st.header("Upload Your Trained Model Files")
-    st.markdown("Upload all the necessary files with the correct format for the stress detection system.")
+elif page == "📤 Model Files Status":
+    st.header("Model Configuration")
     
-    with st.form("upload_model_form"):
-        st.subheader("Required Files")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            model_file = st.file_uploader(
-                "AdaBoost Model (.pkl or .joblib)",
-                type=['pkl', 'joblib'],
-                help="The trained AdaBoost classifier model"
-            )
-            
-            scaler_file = st.file_uploader(
-                "Scaler (.pkl or .joblib)",
-                type=['pkl', 'joblib'],
-                help="StandardScaler used for feature scaling"
-            )
-            
-            label_encoder_file = st.file_uploader(
-                "Label Encoder (.pkl)",
-                type=['pkl'],
-                help="LabelEncoder used for stress level encoding"
-            )
-        
-        with col2:
-            feature_names_file = st.file_uploader(
-                "Feature Names (.pkl)",
-                type=['pkl'],
-                help="List of feature names used in training"
-            )
-            
-            shap_importance_file = st.file_uploader(
-                "SHAP Global Importance (.csv) - Optional",
-                type=['csv'],
-                help="CSV file with feature importance scores from SHAP"
-            )
-        
-        st.markdown("---")
-        
-        submitted = st.form_submit_button("Load Model Files", type="primary", use_container_width=True)
-        
-        if submitted:
-            # Check if all required files are uploaded
-            required_files = [model_file, scaler_file, label_encoder_file, feature_names_file]
-            required_names = ["Model", "Scaler", "Label Encoder", "Feature Names"]
-            
-            missing = []
-            for i, file in enumerate(required_files):
-                if file is None:
-                    missing.append(required_names[i])
-            
-            if missing:
-                st.markdown("""
-                <div class="error-box">
-                    <strong>Missing Required Files</strong><br>
-                    Please upload all required files before proceeding.
-                </div>
-                """, unsafe_allow_html=True)
-                st.error(f"Missing files: {', '.join(missing)}")
-            else:
-                # Validate files before loading
-                errors, warnings = validate_uploaded_files(model_file, scaler_file, label_encoder_file, feature_names_file)
-                
-                # Display warnings if any
-                if warnings:
-                    st.markdown("""
-                    <div class="warning-box">
-                        <strong>File Format Warnings</strong><br>
-                        Please review the following warnings:
-                    </div>
-                    """, unsafe_allow_html=True)
-                    for warning in warnings:
-                        st.warning(warning)
-                
-                if errors:
-                    st.markdown("""
-                    <div class="error-box">
-                        <strong>File Validation Errors</strong><br>
-                        Please fix the following issues:
-                    </div>
-                    """, unsafe_allow_html=True)
-                    for error in errors:
-                        st.error(error)
-                else:
-                    try:
-                            # Store in session state
-                            st.session_state.model = model
-                            st.session_state.scaler = scaler
-                            st.session_state.label_encoder = label_encoder
-                            st.session_state.feature_names = feature_names
-                            st.session_state.importance_df = importance_df
-                            
-                            st.markdown("""
-                            <div class="success-box">
-                                <strong>All Model Files Loaded Successfully!</strong><br>
-                                Your AdaBoost model is now ready for stress detection.
-                            </div>
-                            """, unsafe_allow_html=True)
-                            st.balloons()
-                    
-                    except Exception as e:
-                        st.markdown(f"""
-                        <div class="error-box">
-                            <strong>Unexpected Error During File Loading</strong><br>
-                            {str(e)}<br><br>
-                            <strong>Troubleshooting Steps:</strong><br>
-                            1. Verify all files are from the same training session<br>
-                            2. Ensure files are not corrupted<br>
-                            3. Check that the model was trained with the same features<br>
-                            4. Try re-saving the files using joblib.dump()
-                        </div>
-                        """, unsafe_allow_html=True)
-                        st.exception(e)
+    # ============ CURRENTLY LOADED STATUS ============
+    st.subheader("Current Status")
     
-    # Display current loaded status
-    st.markdown("---")
-    st.subheader("Currently Loaded Status")
-    
-    if 'model' in st.session_state and st.session_state.model is not None:
-        st.success("Model files are loaded successfully and ready to use")
+    if st.session_state.model is not None:
+        st.markdown("""
+        <div class="success-box">
+            <strong>Models Loaded Successfully</strong><br>
+        </div>
+        """, unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Model", "AdaBoost", help="Model is loaded")
+            st.metric("Status", "Active")
         with col2:
-            st.metric("Features", len(st.session_state.feature_names))
+            total = len(st.session_state.original_feature_names)
+            unique = len(st.session_state.display_features)
+            st.metric("Features", f"{total} total")
         with col3:
-            if st.button("Clear Loaded Models", type="secondary"):
-                # Clear session state
-                st.session_state.model = None
-                st.session_state.scaler = None
-                st.session_state.label_encoder = None
-                st.session_state.feature_names = None
-                st.session_state.importance_df = None
-                st.rerun()
+            if st.session_state.importance_df is not None:
+                st.metric("SHAP", "Available")
+            else:
+                st.metric("SHAP", "Optional")
+        
+        st.markdown("---")
+        
+        # Clear models with confirmation
+        if 'confirm_clear' not in st.session_state:
+            st.session_state.confirm_clear = False
+        
+        if not st.session_state.confirm_clear:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("Clear loaded models", type="secondary", use_container_width=True):
+                    st.session_state.confirm_clear = True
+                    st.rerun()
+        else:
+            st.markdown("""
+            <div class="warning-box">
+                <strong>Confirm clear models</strong><br>
+                This will remove all loaded models. Prediction features will not work until you reload the pages.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("Yes, clear models", use_container_width=True):
+                    st.session_state.model = None
+                    st.session_state.scaler = None
+                    st.session_state.label_encoder = None
+                    st.session_state.original_feature_names = None
+                    st.session_state.display_features = None
+                    st.session_state.feature_mapping = None
+                    st.session_state.importance_df = None
+                    st.session_state.confirm_clear = False
+                    st.rerun()
+            with col_no:
+                if st.button("No, keep models", use_container_width=True):
+                    st.session_state.confirm_clear = False
+                    st.rerun()
+    
     else:
-        st.warning("No model files loaded yet. Please upload the required files above.")
-# ==================================== END OF PAGE 2: UPLOAD MODEL FILES =========================================
+        # No models loaded
+        st.markdown("""
+        <div class="warning-box">
+        No models loaded. Please refresh the page to enable the auto load models.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
 
 # ==================================== PAGE 3: STUDENT SELF-TEST ===========================================
 elif page == "📝 Student Self-Test":
+    from datetime import datetime
+    from fpdf import FPDF
+    
     st.header("Student Stress Assessment")
     st.markdown("Complete the questionnaire to get your personalized stress level assessment.")
     
-    if 'model' not in st.session_state or st.session_state.model is None:
-        st.warning("No model loaded. Please upload your model files first in 'Upload Model Files' section.")
+    if st.session_state.model is None:
+        st.warning("No model loaded. Please upload your model files first.")
     else:
-        # Instructions for the questionnaire
         st.markdown("""
         <div class="info-box">
             <strong>How to Answer:</strong><br>
-            • All questions use a scale from 0 to 10<br>
-            • 0 = Never / Not at all / Very Low<br>
-            • 10 = Always / Very severely / Very High<br>
-            • Slide to the right for higher frequency or severity
+            All questions use a scale from 0 to 10<br>
+            0 = Never / Not at all / Very Low<br>
+            10 = Always / Very severely / Very High
         </div>
         """, unsafe_allow_html=True)
         
         st.subheader("Stress Assessment Questionnaire")
         st.markdown("Please rate each factor based on your recent experience (past 2 weeks):")
         
-        # Create two columns for inputs
         col1, col2 = st.columns(2)
         user_input = {}
         
-        # ============ HIDE REPEATED QUESTIONS ============
-        unique_features = []
-        seen_features = set()
-        duplicate_features = []
-        
-        for feature in st.session_state.feature_names:
-            # Clean the feature name (remove .1, .2, etc.)
-            clean_feature = feature.split('.')[0] if '.' in feature else feature
-            
-            if clean_feature.lower() not in seen_features:
-                unique_features.append(feature)
-                seen_features.add(clean_feature.lower())
-            else:
-                duplicate_features.append(feature)
-        
-        # Define special handling for Gender and Age
-        def is_gender_feature(feature_name):
-            return 'gender' in feature_name.lower()
-        
-        def is_age_feature(feature_name):
-            return 'age' in feature_name.lower()
-        
-        # Display ONLY unique questions (no duplicates)
-        for idx, feature in enumerate(unique_features):
-            # Determine column placement
+        # Display only unique features (no .1, .2 duplicates)
+        for idx, display_feature in enumerate(st.session_state.display_features):
             with col1 if idx % 2 == 0 else col2:
                 
-                # Check if this is Gender feature
-                if is_gender_feature(feature):
+                # Gender feature
+                if 'gender' in display_feature.lower():
                     selected = st.selectbox(
-                        feature,
+                        display_feature,
                         options=['Male', 'Female', 'Prefer not to say'],
-                        help="Select your gender",
-                        key=f"select_gender"
+                        key=f"gender_{idx}"
                     )
                     gender_mapping = {'Male': 0, 'Female': 1, 'Prefer not to say': 2}
-                    user_input[feature] = gender_mapping[selected]
+                    value = gender_mapping[selected]
+                    
+                    # Store value for ALL original feature variants
+                    for original_feature in st.session_state.feature_mapping[display_feature]:
+                        user_input[original_feature] = value
                     st.caption(f"Selected: {selected}")
                 
-                # Check if this is Age feature
-                elif is_age_feature(feature):
-                    user_input[feature] = st.number_input(
-                        feature,
+                # Age feature
+                elif 'age' in display_feature.lower():
+                    value = st.number_input(
+                        display_feature,
                         min_value=16,
                         max_value=100,
                         value=22,
                         step=1,
-                        help="Enter your age in years",
-                        key=f"number_age"
+                        key=f"age_{idx}"
                     )
-                    if user_input[feature] < 18:
-                        st.caption(f"Age: {user_input[feature]} - Young adult")
-                    elif user_input[feature] <= 25:
-                        st.caption(f"Age: {user_input[feature]} - Typical university age")
-                    elif user_input[feature] <= 35:
-                        st.caption(f"Age: {user_input[feature]} - Young professional")
+                    
+                    # Store value for ALL original feature variants
+                    for original_feature in st.session_state.feature_mapping[display_feature]:
+                        user_input[original_feature] = value
+                    
+                    if value < 18:
+                        st.caption(f"Age: {value} - Young adult")
+                    elif value <= 25:
+                        st.caption(f"Age: {value} - University age")
+                    elif value <= 35:
+                        st.caption(f"Age: {value} - Young professional")
                     else:
-                        st.caption(f"Age: {user_input[feature]} - Adult")
+                        st.caption(f"Age: {value} - Adult")
                 
-                # Regular slider for all other features (0-10 scale)
+                # Regular questions
                 else:
-                    user_input[feature] = st.slider(
-                        feature,
+                    value = st.slider(
+                        display_feature,
                         min_value=0,
                         max_value=10,
                         value=5,
                         step=1,
-                        help=f"0 = Never/Low, 10 = Always/High",
-                        key=f"slider_{idx}_{feature[:30]}"
+                        key=f"slider_{idx}"
                     )
                     
-                    # Show interpretation based on score
-                    if user_input[feature] <= 2:
-                        st.caption(f"Score: {user_input[feature]} - Low / Never")
-                    elif user_input[feature] <= 4:
-                        st.caption(f"Score: {user_input[feature]} - Mild / Occasionally")
-                    elif user_input[feature] <= 6:
-                        st.caption(f"Score: {user_input[feature]} - Moderate / Sometimes")
-                    elif user_input[feature] <= 8:
-                        st.caption(f"Score: {user_input[feature]} - High / Frequently")
+                    # Store value for ALL original feature variants
+                    for original_feature in st.session_state.feature_mapping[display_feature]:
+                        user_input[original_feature] = value
+                    
+                    if value <= 2:
+                        st.caption(f"Score: {value} - Low / Never")
+                    elif value <= 4:
+                        st.caption(f"Score: {value} - Mild / Occasionally")
+                    elif value <= 6:
+                        st.caption(f"Score: {value} - Moderate / Sometimes")
+                    elif value <= 8:
+                        st.caption(f"Score: {value} - High / Frequently")
                     else:
-                        st.caption(f"Score: {user_input[feature]} - Severe / Always")
-        
-        # ============ HANDLE HIDDEN DUPLICATE FEATURES FOR MODEL ============
-        for duplicate in duplicate_features:
-            # Find the original feature (without .1, .2)
-            clean_dup = duplicate.split('.')[0] if '.' in duplicate else duplicate
-            for original in unique_features:
-                clean_original = original.split('.')[0] if '.' in original else original
-                if clean_original.lower() == clean_dup.lower() and original != duplicate:
-                    user_input[duplicate] = user_input[original]
-                    break
+                        st.caption(f"Score: {value} - Severe / Always")
         
         st.markdown("---")
         
-        # Add clear/reset button
         col_reset1, col_reset2, col_reset3 = st.columns([1, 2, 1])
         with col_reset2:
             if st.button("Reset All Values", use_container_width=True):
@@ -874,310 +722,611 @@ elif page == "📝 Student Self-Test":
         
         st.markdown("---")
         
-        # Analyze button
         if st.button("Analyze My Stress Level", type="primary", use_container_width=True):
-            with st.spinner("Analyzing your responses with AI model..."):
-                # Create dataframe with user inputs
+            with st.spinner("Analyzing your responses..."):
+                # Create dataframe with ALL original features
                 input_df = pd.DataFrame([user_input])
                 
-                # Make prediction
-                prediction, probabilities = predict_stress(
-                    input_df, 
-                    st.session_state.model, 
-                    st.session_state.scaler, 
-                    st.session_state.label_encoder, 
-                    st.session_state.feature_names
-                )
-                
-                if prediction is not None:
-                    # Handle numeric predictions
-                    numeric_to_stress = {0: 'Low', 1: 'Moderate', 2: 'High'}
+                # Verify all required features are present
+                missing_features = [f for f in st.session_state.original_feature_names if f not in input_df.columns]
+                if missing_features:
+                    st.error(f"Missing features: {missing_features[:3]}")
+                else:
+                    prediction, probabilities = predict_stress(
+                        input_df, 
+                        st.session_state.model, 
+                        st.session_state.scaler, 
+                        st.session_state.label_encoder, 
+                        st.session_state.original_feature_names
+                    )
                     
-                    # Extract prediction value
-                    if isinstance(prediction, (list, np.ndarray)) and len(prediction) > 0:
-                        pred_value = prediction[0]
-                    else:
-                        pred_value = prediction
-                    
-                    # Convert to stress level string
-                    if isinstance(pred_value, (int, float, np.integer)):
-                        stress_level = numeric_to_stress.get(int(pred_value), 'Unknown')
-                    else:
-                        stress_level = str(pred_value).strip()
-                    
-                    # Store in session state for dashboard charts
-                    if 'test_history' not in st.session_state:
-                        st.session_state.test_history = []
-                    
-                    st.session_state.test_history.append({
-                        'timestamp': pd.Timestamp.now(),
-                        'stress_level': stress_level,
-                        'responses': user_input.copy()
-                    })
-                    
-                    # Display prediction with styling
-                    if stress_level.lower() == "low":
-                        st.markdown("""
-                        <div class="prediction-low">
-                            <h2>Low Stress Level Detected</h2>
-                            <p>Great news! Your responses indicate you're managing stress well.</p>
-                            <p>Keep up the healthy habits!</p>
-                            <hr>
-                            <p><strong>What this means:</strong> Your current coping strategies are working well.</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        st.balloons()
-                    
-                    elif stress_level.lower() == "moderate":
-                        st.markdown("""
-                        <div class="prediction-moderate">
-                            <h2>Moderate Stress Level Detected</h2>
-                            <p>You're experiencing some stress, but there are effective ways to manage it.</p>
-                            <p>With some adjustments, you can reduce your stress levels.</p>
-                            <hr>
-                            <p><strong>What this means:</strong> Your stress levels are elevated but manageable.</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    elif stress_level.lower() == "high":
-                        st.markdown("""
-                        <div class="prediction-high">
-                            <h2>High Stress Level Detected</h2>
-                            <p>Your responses indicate significant stress that may be affecting your well-being.</p>
-                            <p>It's important to take action now.</p>
-                            <hr>
-                            <p><strong>What this means:</strong> Your stress levels are concerning.</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    else:
-                        st.error(f"Unexpected prediction result: {stress_level}")
-                    
-                    # Show probabilities chart
-                    st.subheader("Model Prediction Confidence")
-                    st.markdown("Higher bar = Model is more confident in that prediction")
-                    
-                    classes = get_label_encoder_classes(st.session_state.label_encoder)
-                    prob_df = pd.DataFrame({
-                        'Stress Level': classes,
-                        'Confidence (%)': probabilities[0] * 100
-                    })
-                    fig = px.bar(prob_df, x='Stress Level', y='Confidence (%)', 
-                                 title="Model's Prediction Confidence",
-                                 color='Stress Level',
-                                 color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'})
-                    fig.update_layout(yaxis_range=[0, 100])
-                    fig.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # ==================== RECOMMENDATIONS ====================
-                    st.subheader("Personalized Recommendations")
-                    
-                    if stress_level.lower() == "high":
-                        st.error("""
-                        ### IMMEDIATE ACTIONS RECOMMENDED
+                    if prediction is not None:
+                        numeric_to_stress = {0: 'Low', 1: 'Moderate', 2: 'High'}
                         
-                        **1. Professional Support (Priority)**
-                        - Talk to a counselor or mental health professional
-                        - Call a mental health helpline if you need immediate support
+                        if isinstance(prediction, (list, np.ndarray)) and len(prediction) > 0:
+                            pred_value = prediction[0]
+                        else:
+                            pred_value = prediction
                         
-                        **2. Immediate Self-Care (Today)**
-                        - Practice deep breathing: Inhale 4 sec, hold 4 sec, exhale 4 sec
-                        - Prioritize sleep - aim for 7-9 hours tonight
-                        - Take a 10-15 minute walk outside
+                        if isinstance(pred_value, (int, float, np.integer)):
+                            stress_level = numeric_to_stress.get(int(pred_value), 'Unknown')
+                        else:
+                            stress_level = str(pred_value).strip()
                         
-                        **3. Short-term Stress Management**
-                        - Break large tasks into smaller steps
-                        - Set realistic daily goals
-                        - Reach out to trusted friends or family
-                        """)
+                        # Store in history
+                        st.session_state.test_history.append({
+                            'timestamp': pd.Timestamp.now(),
+                            'stress_level': stress_level,
+                            'responses': user_input.copy()
+                        })
                         
-                        st.info("""
-                        ### Remember
-                        - You are not alone - many students experience high stress
-                        - Seeking help is a sign of strength, not weakness
-                        - Take one step at a time
-                        """)
-                    
-                    elif stress_level.lower() == "moderate":
-                        st.warning("""
-                        ### RECOMMENDED ACTIONS
+                        # Display result with styling
+                        if stress_level.lower() == "low":
+                            st.markdown("""
+                            <div class="prediction-low">
+                                <h2>Low Stress Level Detected</h2>
+                                <p>Great news! Your responses indicate you're managing stress well.</p>
+                                <p>Keep up the healthy habits!</p>
+                                <hr>
+                                <p><strong>What this means:</strong> Your current coping strategies are working well.</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.balloons()
                         
-                        **Daily Habits to Reduce Stress**
-                        - 5-10 minutes of meditation daily
-                        - Maintain consistent sleep schedule (7-9 hours)
-                        - 20-30 minutes of physical activity daily
+                        elif stress_level.lower() == "moderate":
+                            st.markdown("""
+                            <div class="prediction-moderate">
+                                <h2>Moderate Stress Level Detected</h2>
+                                <p>You're experiencing some stress, but there are effective ways to manage it.</p>
+                                <p>With some adjustments, you can reduce your stress levels.</p>
+                                <hr>
+                                <p><strong>What this means:</strong> Your stress levels are elevated but manageable.</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                         
-                        **Work/Life Balance**
-                        - Create a realistic daily schedule
-                        - Take regular breaks (5 min every hour)
-                        - Set achievable goals
-                        """)
+                        elif stress_level.lower() == "high":
+                            st.markdown("""
+                            <div class="prediction-high">
+                                <h2>High Stress Level Detected</h2>
+                                <p>Your responses indicate significant stress that may be affecting your well-being.</p>
+                                <p>It's important to take action now.</p>
+                                <hr>
+                                <p><strong>What this means:</strong> Your stress levels are concerning and require attention.</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                         
-                        st.info("""
-                        ### Remember
-                        - Small changes today can prevent bigger problems tomorrow
-                        - It's okay to ask for help before stress becomes overwhelming
-                        """)
-                    
-                    else:  # Low Stress
-                        st.success("""
-                        ### MAINTAIN YOUR HEALTHY HABITS
+                        else:
+                            st.error(f"Unexpected prediction result: {stress_level}")
                         
-                        **Keep Up the Good Work**
-                        - Continue your current healthy routines
-                        - Keep monitoring your stress levels weekly
-                        - Practice mindfulness to build resilience
+                        # Show confidence chart
+                        st.subheader("Model Prediction Confidence")
+                        st.markdown("Higher bar = Model is more confident in that prediction")
                         
-                        **Prevention Strategies**
-                        - Practice gratitude journaling
-                        - Stay connected with friends and family
-                        - Schedule regular self-care activities
-                        """)
+                        classes = get_label_encoder_classes(st.session_state.label_encoder)
+                        prob_df = pd.DataFrame({
+                            'Stress Level': classes,
+                            'Confidence (%)': probabilities[0] * 100
+                        })
+                        fig = px.bar(prob_df, x='Stress Level', y='Confidence (%)', 
+                                     title="Model's Prediction Confidence",
+                                     color='Stress Level',
+                                     color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'})
+                        fig.update_layout(yaxis_range=[0, 100])
+                        fig.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
+                        st.plotly_chart(fig, use_container_width=True)
                         
-                        st.info("""
-                        ### Remember
-                        Maintaining these habits will help you stay resilient during challenging times!
-                        """)
+                        # ==================== RECOMMENDATIONS SECTION ====================
+                        st.subheader("Personalized Recommendations")
+                        
+                        recommendations_text = ""
+                        
+                        if stress_level.lower() == "high":
+                            recommendations_text = """
+                            IMMEDIATE ACTIONS RECOMMENDED
+                            
+                            1. Professional Support (Priority)
+                            - Talk to a counselor or mental health professional
+                            - Call a mental health helpline if you need immediate support
+                            
+                            2. Immediate Self-Care (Today)
+                            - Practice deep breathing: Inhale 4 sec, hold 4 sec, exhale 4 sec
+                            - Prioritize sleep - aim for 7-9 hours tonight
+                            - Take a 10-15 minute walk outside
+                            
+                            3. Short-term Stress Management
+                            - Break large tasks into smaller steps
+                            - Set realistic daily goals
+                            - Reach out to trusted friends or family
+                            """
+                            st.error(recommendations_text)
+                            
+                            st.info("""
+                            ### Remember
+                            - You are not alone - many students experience high stress
+                            - Seeking help is a sign of strength, not weakness
+                            - Take one step at a time
+                            """)
+                        
+                        elif stress_level.lower() == "moderate":
+                            recommendations_text = """
+                            RECOMMENDED ACTIONS
+                            
+                            Daily Habits to Reduce Stress
+                            - 5-10 minutes of meditation daily
+                            - Maintain consistent sleep schedule (7-9 hours)
+                            - 20-30 minutes of physical activity daily
+                            
+                            Work/Life Balance
+                            - Create a realistic daily schedule
+                            - Take regular breaks (5 min every hour)
+                            - Set achievable goals
+                            
+                            Stress Management Techniques
+                            - Practice time management
+                            - Learn to say no to additional commitments
+                            - Connect with supportive friends
+                            """
+                            st.warning(recommendations_text)
+                            
+                            st.info("""
+                            ### Remember
+                            - Small changes today can prevent bigger problems tomorrow
+                            - It's okay to ask for help before stress becomes overwhelming
+                            """)
+                        
+                        else:  # Low Stress
+                            recommendations_text = """
+                            MAINTAIN YOUR HEALTHY HABITS
+                            
+                            Keep Up the Good Work
+                            - Continue your current healthy routines
+                            - Keep monitoring your stress levels weekly
+                            - Practice mindfulness to build resilience
+                            
+                            Prevention Strategies
+                            - Practice gratitude journaling
+                            - Stay connected with friends and family
+                            - Schedule regular self-care activities
+                            
+                            Stay Proactive
+                            - Maintain work-life balance
+                            - Get adequate sleep and exercise
+                            - Eat a balanced diet
+                            """
+                            st.success(recommendations_text)
+                            
+                            st.info("""
+                            ### Remember
+                            Maintaining these habits will help you stay resilient during challenging times!
+                            """)
+                        
+                # ==================== DOWNLOAD RESULTS AS PDF ====================
+                st.markdown("---")
+                st.subheader("Download Report")
 
+                class PDF(FPDF):
+                    def header(self):
+                        # Add logo/header background
+                        self.set_fill_color(46, 134, 171)
+                        self.rect(0, 0, 210, 40, 'F')
+                        
+                        # Title
+                        self.set_font('Arial', 'B', 20)
+                        self.set_text_color(255, 255, 255)
+                        self.cell(0, 15, 'STRESS ASSESSMENT REPORT', 0, 1, 'C')
+                        
+                        # Subtitle
+                        self.set_font('Arial', 'I', 10)
+                        self.set_text_color(230, 230, 230)
+                        self.cell(0, 8, 'XAI Stress Detection System | AdaBoost + SHAP', 0, 1, 'C')
+                        self.ln(15)
+                    
+                    def footer(self):
+                        self.set_y(-15)
+                        self.set_font('Arial', 'I', 8)
+                        self.set_text_color(128, 128, 128)
+                        self.cell(0, 10, f'Page {self.page_no()} | Generated on {datetime.now().strftime("%d/%m/%Y")}', 0, 0, 'C')
+                    
+                    def section_title(self, title):
+                        self.set_font('Arial', 'B', 14)
+                        self.set_text_color(46, 134, 171)
+                        self.cell(0, 10, title, 0, 1, 'L')
+                        self.set_draw_color(46, 134, 171)
+                        self.line(10, self.get_y(), 200, self.get_y())
+                        self.ln(5)
+                    
+                    def confidence_bar(self, label, percentage, color_r, color_g, color_b):
+                        self.set_font('Arial', 'B', 10)
+                        self.set_text_color(0, 0, 0)
+                        self.cell(35, 8, label, 0, 0, 'L')
+                        
+                        # Draw bar background
+                        self.set_fill_color(230, 230, 230)
+                        self.rect(50, self.get_y() - 2, 100, 6, 'F')
+                        
+                        # Draw confidence bar
+                        self.set_fill_color(color_r, color_g, color_b)
+                        self.rect(50, self.get_y() - 2, percentage, 6, 'F')
+                        
+                        # Draw percentage text to the right of the bar
+                        self.set_font('Arial', 'B', 10)
+                        self.set_text_color(color_r, color_g, color_b)
+                        self.set_x(155)
+                        self.cell(0, 8, f'{percentage:.1f}%', 0, 1, 'L')
+                        self.ln(2)
+                    
+                    def add_explanation(self, text):
+                        self.set_font('Arial', 'I', 9)
+                        self.set_text_color(100, 100, 100)
+                        self.multi_cell(0, 5, text, 0, 1)
+                        self.ln(3)
+
+                # Create PDF
+                pdf = PDF()
+                pdf.add_page()
+
+                # Date and Time
+                pdf.set_font('Arial', 'B', 10)
+                pdf.set_text_color(100, 100, 100)
+                pdf.cell(0, 8, f"Report Date: {datetime.now().strftime('%d/%m/%Y at %H:%M:%S')}", 0, 1, 'R')
+                pdf.ln(5)
+
+                # ASSESSMENT RESULTS SECTION
+                pdf.section_title("ASSESSMENT RESULTS")
+
+                # Stress level with colored box
+                stress_color = {
+                    'low': (40, 167, 69),
+                    'moderate': (255, 193, 7),
+                    'high': (220, 53, 69)
+                }.get(stress_level.lower(), (100, 100, 100))
+
+                pdf.set_font('Arial', 'B', 16)
+                pdf.set_text_color(stress_color[0], stress_color[1], stress_color[2])
+                pdf.cell(0, 12, f"Predicted Stress Level: {stress_level.upper()}", 0, 1, 'C')
+                pdf.ln(5)
+
+                # CONFIDENCE SCORES SECTION
+                pdf.section_title("CONFIDENCE SCORES")
+
+                # Add explanation
+                pdf.add_explanation("The confidence scores below indicate how certain the model is about each stress level prediction. Higher percentages mean the model is more confident in that classification.")
+
+                for i, level in enumerate(classes):
+                    percentage = probabilities[0][i] * 100
+                    if level.lower() == 'low':
+                        pdf.confidence_bar(level, percentage, 40, 167, 69)
+                    elif level.lower() == 'moderate':
+                        pdf.confidence_bar(level, percentage, 255, 193, 7)
+                    else:
+                        pdf.confidence_bar(level, percentage, 220, 53, 69)
+
+                # Add interpretation guide
+                pdf.add_explanation("Interpretation: Low confidence (<50%) suggests uncertainty, while high confidence (>70%) indicates strong prediction certainty.")
+
+                pdf.ln(5)
+                pdf.section_title("RESPONSES SUMMARY")
+                pdf.add_explanation("Your responses to each question are summarized below. Scores range from 0 (Never/Low) to 10 (Always/High).")
+
+                # Get all responses with proper display values
+                response_items = []
+                gender_display = {0: 'Male', 1: 'Female', 2: 'Prefer not to say'}
+
+                for display_feature in st.session_state.display_features:
+                    for orig_feature, val in user_input.items():
+                        if display_feature.lower() in orig_feature.lower():
+                            # Convert gender code to text (black color)
+                            if 'gender' in display_feature.lower():
+                                display_value = gender_display.get(val, str(val))
+                                interpretation = ""
+                                numeric_val = None
+                            # Handle age specially (black color)
+                            elif 'age' in display_feature.lower():
+                                display_value = str(val)
+                                if val < 18:
+                                    interpretation = "(Young adult)"
+                                elif val <= 25:
+                                    interpretation = "(University age)"
+                                elif val <= 35:
+                                    interpretation = "(Young professional)"
+                                else:
+                                    interpretation = "(Adult)"
+                                numeric_val = None
+                            # Regular questions with score interpretation
+                            elif isinstance(val, (int, float)):
+                                display_value = str(val)
+                                if val <= 2:
+                                    interpretation = "(Low/Never)"
+                                elif val <= 4:
+                                    interpretation = "(Mild/Occasionally)"
+                                elif val <= 6:
+                                    interpretation = "(Moderate/Sometimes)"
+                                elif val <= 8:
+                                    interpretation = "(High/Frequently)"
+                                else:
+                                    interpretation = "(Severe/Always)"
+                                numeric_val = val
+                            else:
+                                display_value = str(val)
+                                interpretation = ""
+                                numeric_val = None
+                            
+                            response_items.append((display_feature, display_value, interpretation, numeric_val))
+                            break
+
+                # Display all questions in a single column
+                pdf.set_font('Arial', '', 10)
+
+                for idx, (feature, display_value, interpretation, numeric_val) in enumerate(response_items):
+                    # Question number
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(46, 134, 171)
+                    pdf.cell(15, 8, f"{idx + 1}.", 0, 0, 'L')
+                    
+                    # Question text
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(0, 0, 0)
+                    pdf.cell(130, 8, feature[:60], 0, 0, 'L')
+                    
+                    # Score - always black for gender and age, colored for regular questions
+                    if 'gender' in feature.lower() or 'age' in feature.lower():
+                        pdf.set_text_color(0, 0, 0)
+                        pdf.set_font('Arial', 'B', 10)
+                        pdf.cell(20, 8, display_value, 0, 0, 'C')
+                    else:
+                        if numeric_val is not None:
+                            if numeric_val <= 2:
+                                pdf.set_text_color(40, 167, 69)
+                            elif numeric_val <= 4:
+                                pdf.set_text_color(120, 120, 120)
+                            elif numeric_val <= 6:
+                                pdf.set_text_color(255, 193, 7)
+                            elif numeric_val <= 8:
+                                pdf.set_text_color(255, 100, 0)
+                            else:
+                                pdf.set_text_color(220, 53, 69)
+                        else:
+                            pdf.set_text_color(0, 0, 0)
+                        
+                        pdf.set_font('Arial', 'B', 10)
+                        pdf.cell(20, 8, display_value, 0, 0, 'C')
+                    
+                    # Interpretation
+                    pdf.set_font('Arial', 'I', 8)
+                    pdf.set_text_color(100, 100, 100)
+                    pdf.cell(0, 8, interpretation, 0, 1, 'L')
+                    
+                    # Add light separator line
+                    if idx < len(response_items) - 1:
+                        pdf.set_draw_color(230, 230, 230)
+                        pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
+                        pdf.ln(2)
+
+                # RECOMMENDATIONS SECTION - Standardized design for all stress levels
+                pdf.ln(5)
+                pdf.section_title("RECOMMENDATIONS")
+
+                # Common explanation based on stress level
+                if stress_level.lower() == "high":
+                    pdf.add_explanation("Based on your responses, the following recommendations can help you manage your stress levels effectively:")
+                elif stress_level.lower() == "moderate":
+                    pdf.add_explanation("Based on your responses, the following recommendations can help you reduce and manage your stress levels:")
+                else:
+                    pdf.add_explanation("Based on your responses, the following recommendations can help you maintain your current well-being:")
+
+                # Standard header with stress level color
+                pdf.set_fill_color(stress_color[0], stress_color[1], stress_color[2])
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font('Arial', 'B', 11)
+                pdf.cell(0, 8, f"{stress_level.upper()} STRESS - RECOMMENDATIONS", 0, 1, 'C')
+                pdf.set_text_color(0, 0, 0)
+
+                # Section 1: Immediate Actions / Daily Habits
+                pdf.set_font('Arial', 'B', 10)
+                pdf.set_text_color(46, 134, 171)
+                pdf.cell(0, 6, "1. Daily Self-Care Practices", 0, 1, 'L')
+                pdf.set_font('Arial', '', 10)
+                pdf.set_text_color(60, 60, 60)
+
+                if stress_level.lower() == "high":
+                    pdf.multi_cell(0, 5, "   - Practice deep breathing exercises (5-10 minutes daily)\n   - Prioritize 7-9 hours of sleep each night\n   - Take short walks (10-15 minutes) to clear your mind", 0, 1)
+                elif stress_level.lower() == "moderate":
+                    pdf.multi_cell(0, 5, "   - Set aside 10 minutes daily for meditation or relaxation\n   - Maintain a consistent sleep schedule\n   - Incorporate 20-30 minutes of physical activity into your routine", 0, 1)
+                else:
+                    pdf.multi_cell(0, 5, "   - Continue your current healthy routines\n   - Keep monitoring your stress levels weekly\n   - Practice mindfulness to build resilience", 0, 1)
+                pdf.ln(2)
+
+                # Section 2: Lifestyle Adjustments
+                pdf.set_font('Arial', 'B', 10)
+                pdf.set_text_color(46, 134, 171)
+                pdf.cell(0, 6, "2. Lifestyle Adjustments", 0, 1, 'L')
+                pdf.set_font('Arial', '', 10)
+                pdf.set_text_color(60, 60, 60)
+
+                if stress_level.lower() == "high":
+                    pdf.multi_cell(0, 5, "   - Break large tasks into smaller, manageable steps\n   - Set realistic daily goals\n   - Reduce caffeine and sugar intake", 0, 1)
+                elif stress_level.lower() == "moderate":
+                    pdf.multi_cell(0, 5, "   - Create a balanced daily schedule\n   - Take regular breaks (5 minutes every hour)\n   - Learn to say no to additional commitments", 0, 1)
+                else:
+                    pdf.multi_cell(0, 5, "   - Maintain work-life balance\n   - Get adequate sleep (7-9 hours)\n   - Eat a balanced, nutritious diet", 0, 1)
+                pdf.ln(2)
+
+                # Section 3: Social Support & Professional Help
+                pdf.set_font('Arial', 'B', 10)
+                pdf.set_text_color(46, 134, 171)
+                pdf.cell(0, 6, "3. Social Support & Professional Help", 0, 1, 'L')
+                pdf.set_font('Arial', '', 10)
+                pdf.set_text_color(60, 60, 60)
+
+                if stress_level.lower() == "high":
+                    pdf.multi_cell(0, 5, "   - Talk to a counselor or mental health professional\n   - Reach out to trusted friends or family members\n   - Consider joining a support group", 0, 1)
+                elif stress_level.lower() == "moderate":
+                    pdf.multi_cell(0, 5, "   - Connect with supportive friends and family\n   - Share your feelings with someone you trust\n   - Consider speaking with a counselor if stress persists", 0, 1)
+                else:
+                    pdf.multi_cell(0, 5, "   - Stay connected with friends and family\n   - Schedule regular social activities\n   - Practice gratitude journaling", 0, 1)
+                pdf.ln(5)
+
+                # Remember box 
+                pdf.set_fill_color(248, 249, 250)
+                pdf.set_draw_color(stress_color[0], stress_color[1], stress_color[2])
+                pdf.rect(10, pdf.get_y(), 190, 25, 'F')
+                pdf.set_font('Arial', 'B', 9)
+                pdf.set_text_color(stress_color[0], stress_color[1], stress_color[2])
+                pdf.set_xy(15, pdf.get_y() + 2)
+                pdf.cell(0, 5, "REMEMBER", 0, 1, 'L')
+                pdf.set_font('Arial', 'I', 8)
+                pdf.set_text_color(100, 100, 100)
+                pdf.set_xy(15, pdf.get_y() + 2)
+
+                if stress_level.lower() == "high":
+                    pdf.multi_cell(180, 4, "You are not alone - many students experience high stress. Seeking help is a sign of strength, not weakness. Take one step at a time.", 0, 1)
+                elif stress_level.lower() == "moderate":
+                    pdf.multi_cell(180, 4, "Small changes today can prevent bigger problems tomorrow. It's okay to ask for help before stress becomes overwhelming.", 0, 1)
+                else:
+                    pdf.multi_cell(180, 4, "Maintaining these habits will help you stay resilient during challenging times. Prevention is the best strategy!", 0, 1)
+
+                # Separate note as plain italic text
+                pdf.ln(10)
+                pdf.set_font('Arial', 'I', 8)
+                pdf.set_text_color(100, 100, 100)
+                pdf.multi_cell(0, 4, "Note: This report is generated by the XAI Stress Detection System using an AdaBoost machine learning model with SHAP explanations. It is intended for educational and self-awareness purposes only. For medical concerns, please consult a healthcare professional.", 0, 1)
+
+                # Save to bytes
+                pdf_output = pdf.output(dest='S').encode('latin1')
+
+                # Full width download button
+                st.download_button(
+                    label="Download Results as PDF",
+                    data=pdf_output,
+                    file_name=f"stress_assessment_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="download_pdf_button"
+                )
+
+                st.caption("Download your assessment results as a PDF report")
 # ==================================== PAGE 4: SHAP EXPLANATIONS ==================================================
 elif page == "🔍 SHAP Explanations":
     st.header("Explainable AI - SHAP Analysis")
-    st.markdown("Understand **WHY** the model predicts a certain stress level.")
+    st.markdown("Understand WHY the model predicts a certain stress level.")
     
-    if 'model' not in st.session_state or st.session_state.model is None:
-        st.warning("No model loaded. Please upload your model files first in 'Upload Model Files' section.")
+    if st.session_state.model is None:
+        st.warning("No model loaded. Please upload your model files first.")
     else:
         st.info("""
-        **How SHAP (SHapley Additive exPlanations) Works:**
+        How SHAP (SHapley Additive exPlanations) Works:
         
-        | Color | Meaning |
-        |-------|---------|
-        | 🔴 **Red / Positive** | This feature INCREASES stress prediction |
-        | 🔵 **Blue / Negative** | This feature DECREASES stress prediction |
-        | **Bar Length** | How strongly this feature influences the prediction |
+        Red / Positive: This feature INCREASES stress prediction
+        Blue / Negative: This feature DECREASES stress prediction
+        Bar Length: How strongly this feature influences the prediction
         """)
         
-        # Global Importance
-        if 'importance_df' in st.session_state and st.session_state.importance_df is not None:
+        if st.session_state.importance_df is not None:
             st.subheader("Global Feature Importance")
-            st.markdown("Top factors affecting stress prediction across all students:")
-            
             fig = px.bar(
                 st.session_state.importance_df.head(10),
                 x='Importance',
                 y='Feature',
                 orientation='h',
-                title='SHAP Global Feature Importance - Top 10 Factors',
+                title='Top 10 Features Impacting Stress',
                 color='Importance',
                 color_continuous_scale='RdBu',
                 height=500
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("📁 Upload 'shap_global_importance.csv' in the Upload Model Files section to see global feature importance.")
+            st.info("Upload SHAP importance file to see global feature importance.")
         
         st.markdown("---")
         
-        # Interactive Explanation
         st.subheader("Interactive Prediction Explanation")
         st.markdown("Enter values to see how each feature affects the prediction:")
         
         col1, col2 = st.columns(2)
         shap_input = {}
         
-        for idx, feature in enumerate(st.session_state.feature_names[:6]):
+        # Use unique display features
+        for idx, display_feature in enumerate(st.session_state.display_features[:6]):
             with col1 if idx % 2 == 0 else col2:
-                shap_input[feature] = st.slider(
-                    feature.replace('_', ' ').title(),
-                    min_value=0.0,
-                    max_value=10.0,
-                    value=5.0,
-                    key=f"shap_{feature}"
-                )
+                if 'gender' not in display_feature.lower() and 'age' not in display_feature.lower():
+                    shap_input[display_feature] = st.slider(
+                        display_feature,
+                        min_value=0.0,
+                        max_value=10.0,
+                        value=5.0,
+                        key=f"shap_{idx}"
+                    )
         
         if st.button("Explain This Prediction", type="primary"):
-            input_df = pd.DataFrame([shap_input])
-            prediction, probs = predict_stress(
-                input_df,
-                st.session_state.model,
-                st.session_state.scaler,
-                st.session_state.label_encoder,
-                st.session_state.feature_names
-            )
+            # Build input with all original features
+            full_input = {}
+            for display_feature, value in shap_input.items():
+                if display_feature in st.session_state.feature_mapping:
+                    for original_feature in st.session_state.feature_mapping[display_feature]:
+                        full_input[original_feature] = value
             
-            if prediction is not None:
-                stress_level = prediction[0]
+            if full_input:
+                input_df = pd.DataFrame([full_input])
+                prediction, probs = predict_stress(
+                    input_df,
+                    st.session_state.model,
+                    st.session_state.scaler,
+                    st.session_state.label_encoder,
+                    st.session_state.original_feature_names
+                )
                 
-                if stress_level == "Low":
-                    st.success(f"**Predicted Stress Level: {stress_level}**")
-                elif stress_level == "Moderate":
-                    st.warning(f"**Predicted Stress Level: {stress_level}**")
-                else:
-                    st.error(f"**Predicted Stress Level: {stress_level}**")
-                
-                # Create contribution chart
-                st.subheader("Feature Contribution Analysis")
-                
-                contributions = []
-                for feature, value in shap_input.items():
-                    if 'sleep' in feature.lower() and value < 6:
-                        contributions.append((feature.replace('_', ' '), value, 'positive', (7-value)/7))
-                    elif 'work' in feature.lower() and value > 6:
-                        contributions.append((feature.replace('_', ' '), value, 'positive', (value-5)/5))
-                    elif 'activity' in feature.lower() and value < 4:
-                        contributions.append((feature.replace('_', ' '), value, 'positive', (5-value)/5))
-                    elif 'heart' in feature.lower() and value > 85:
-                        contributions.append((feature.replace('_', ' '), value, 'positive', (value-75)/50))
-                    elif 'social' in feature.lower() and value < 4:
-                        contributions.append((feature.replace('_', ' '), value, 'positive', (6-value)/6))
+                if prediction is not None:
+                    stress_level = prediction[0]
+                    if stress_level == "Low":
+                        st.success(f"Predicted Stress Level: {stress_level}")
+                    elif stress_level == "Moderate":
+                        st.warning(f"Predicted Stress Level: {stress_level}")
                     else:
-                        contributions.append((feature.replace('_', ' '), value, 'negative', 0.1))
-                
-                contrib_df = pd.DataFrame(contributions, columns=['Feature', 'Value', 'Direction', 'Impact'])
-                contrib_df = contrib_df.sort_values('Impact', ascending=True)
-                
-                colors = ['#dc3545' if d == 'positive' else '#28a745' for d in contrib_df['Direction']]
-                
-                fig, ax = plt.subplots(figsize=(10, 5))
-                ax.barh(contrib_df['Feature'], contrib_df['Impact'], color=colors)
-                ax.set_xlabel('Impact on Stress Prediction')
-                ax.set_title('Feature Contribution Analysis')
-                ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
-                
-                from matplotlib.patches import Patch
-                legend_elements = [
-                    Patch(facecolor='#dc3545', label='Increases Stress'),
-                    Patch(facecolor='#28a745', label='Decreases Stress')
-                ]
-                ax.legend(handles=legend_elements, loc='lower right')
-                
-                st.pyplot(fig)
-                
-                st.markdown("**Interpretation:**")
-                for _, row in contrib_df.iterrows():
-                    if row['Direction'] == 'positive':
-                        st.write(f"- 🔴 **{row['Feature']}** = {row['Value']} → This factor **increases** stress")
-                    else:
-                        st.write(f"- 🔵 **{row['Feature']}** = {row['Value']} → This factor **decreases** stress")
-# ==================================== END OF PAGE 4: SHAP EXPLANATIONS ==================================================
+                        st.error(f"Predicted Stress Level: {stress_level}")
+                    
+                    # Create contribution chart
+                    contributions = []
+                    for feature, value in shap_input.items():
+                        if 'sleep' in feature.lower() and value < 6:
+                            contributions.append((feature, value, 'positive', (7-value)/7))
+                        elif 'work' in feature.lower() and value > 6:
+                            contributions.append((feature, value, 'positive', (value-5)/5))
+                        else:
+                            contributions.append((feature, value, 'negative', 0.1))
+                    
+                    contrib_df = pd.DataFrame(contributions, columns=['Feature', 'Value', 'Direction', 'Impact'])
+                    contrib_df = contrib_df.sort_values('Impact', ascending=True)
+                    
+                    colors = ['#dc3545' if d == 'positive' else '#28a745' for d in contrib_df['Direction']]
+                    
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    ax.barh(contrib_df['Feature'], contrib_df['Impact'], color=colors)
+                    ax.set_xlabel('Impact on Stress Prediction')
+                    ax.set_title('Feature Contribution Analysis')
+                    ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+                    
+                    from matplotlib.patches import Patch
+                    legend_elements = [
+                        Patch(facecolor='#dc3545', label='Increases Stress'),
+                        Patch(facecolor='#28a745', label='Decreases Stress')
+                    ]
+                    ax.legend(handles=legend_elements, loc='lower right')
+                    st.pyplot(fig)
 
 # ==================================== PAGE 5: BATCH PREDICTION =========================================================
 elif page == "📂 Batch Prediction":
     st.header("Batch Prediction")
     st.markdown("Upload a CSV file with multiple student records to get stress predictions for all.")
     
-    if 'model' not in st.session_state or st.session_state.model is None:
-        st.warning("No model loaded. Please upload your model files first in 'Upload Model Files' section.")
+    if st.session_state.model is None:
+        st.warning("No model loaded. Please upload your model files first.")
     else:
         with st.expander("Required CSV Format"):
-            st.markdown("Your CSV must contain these columns:")
-            for f in st.session_state.feature_names:
+            st.markdown("Your CSV must contain ALL these columns:")
+            for f in st.session_state.original_feature_names[:10]:
                 st.write(f"- `{f}`")
-            st.markdown("**Note:** All values should be on a scale of 0-10 for consistency")
-            st.markdown("**Example:**")
-            example_data = {f: [5, 6, 4, 7, 5, 6] for f in st.session_state.feature_names[:6]}
-            st.dataframe(pd.DataFrame(example_data))
+            if len(st.session_state.original_feature_names) > 10:
+                st.write(f"- ... and {len(st.session_state.original_feature_names) - 10} more")
         
         uploaded_file = st.file_uploader("Choose CSV file", type="csv")
         
@@ -1186,9 +1335,9 @@ elif page == "📂 Batch Prediction":
             st.subheader("Uploaded Data Preview")
             st.dataframe(df.head())
             
-            missing = [f for f in st.session_state.feature_names if f not in df.columns]
+            missing = [f for f in st.session_state.original_feature_names if f not in df.columns]
             if missing:
-                st.error(f"Missing columns: {missing}")
+                st.error(f"Missing columns: {missing[:5]}")
             else:
                 if st.button("Run Batch Prediction", type="primary"):
                     with st.spinner("Predicting..."):
@@ -1197,7 +1346,7 @@ elif page == "📂 Batch Prediction":
                             st.session_state.model,
                             st.session_state.scaler,
                             st.session_state.label_encoder,
-                            st.session_state.feature_names
+                            st.session_state.original_feature_names
                         )
                         
                         if predictions is not None:
@@ -1206,7 +1355,7 @@ elif page == "📂 Batch Prediction":
                             for i, level in enumerate(classes):
                                 df[f'Probability_{level}'] = probabilities[:, i]
                             
-                            st.subheader("📈 Prediction Results")
+                            st.subheader("Prediction Results")
                             st.dataframe(df)
                             
                             col1, col2, col3 = st.columns(3)
@@ -1231,6 +1380,13 @@ elif page == "📂 Batch Prediction":
                             )
                             st.plotly_chart(fig, use_container_width=True)
                             
+                            # Store in history
+                            st.session_state.prediction_history.append({
+                                'timestamp': pd.Timestamp.now(),
+                                'data': df,
+                                'predictions': predictions.tolist() if hasattr(predictions, 'tolist') else list(predictions)
+                            })
+                            
                             csv = df.to_csv(index=False)
                             st.download_button(
                                 label="Download Results as CSV",
@@ -1238,7 +1394,6 @@ elif page == "📂 Batch Prediction":
                                 file_name="stress_predictions.csv",
                                 mime="text/csv"
                             )
-# ==================================== END OF PAGE 5: BATCH PREDICTION =========================================================
 
 # ================================ FOOTER ===========================================
 st.markdown("---")
