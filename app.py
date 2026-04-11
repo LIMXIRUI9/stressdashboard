@@ -84,7 +84,15 @@ st.markdown("""
         border-left: 5px solid #2E86AB;
         margin: 10px 0;
     }
-</style>
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0px;
+        width: 100%;
+    }
+    .stTabs [data-baseweb="tab"] {
+        flex: 1;
+        text-align: center;
+        justify-content: center;
+    }
 """, unsafe_allow_html=True)
 
 # ==================== HELPER FUNCTIONS ====================
@@ -758,7 +766,7 @@ elif page == "📝 Student Self-Test":
         st.markdown("""
         <div class="info-box">
             <strong>How to Answer:</strong><br>
-            All questions use a scale from 0 to 10<br>
+            For demographics questions, answer by selecting the correct option, other answer with a number from 0 to 10:<br>
             0 = Never / Not at all / Very Low<br>
             10 = Always / Very severely / Very High
         </div>
@@ -1384,110 +1392,268 @@ elif page == "📝 Student Self-Test":
 # ==================================== PAGE 4: SHAP EXPLANATIONS ==================================================
 elif page == "🔍 SHAP Explanations":
     st.header("Explainable AI - SHAP Analysis")
-    st.markdown("Understand WHY the model predicts a certain stress level.")
+    st.markdown("Understand why the model predicts a certain stress level.")
     
     if st.session_state.model is None:
-        st.warning("No model loaded. Please upload your model files first.")
+        st.warning("No model loaded. Please refresh the page to load the model files first.")
     else:
-        st.info("""
-        How SHAP (SHapley Additive exPlanations) Works:
+        # Tab layout for different SHAP views
+        tab1, tab2, tab3 = st.tabs(["Global Importance", "Your Prediction", "Feature Impact"])
         
-        Red / Positive: This feature INCREASES stress prediction
-        Blue / Negative: This feature DECREASES stress prediction
-        Bar Length: How strongly this feature influences the prediction
-        """)
-        
-        if st.session_state.importance_df is not None:
+        with tab1: #Global feature importance
             st.subheader("Global Feature Importance")
-            fig = px.bar(
-                st.session_state.importance_df.head(10),
-                x='Importance',
-                y='Feature',
-                orientation='h',
-                title='Top 10 Features Impacting Stress',
-                color='Importance',
-                color_continuous_scale='RdBu',
-                height=500
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Upload SHAP importance file to see global feature importance.")
-        
-        st.markdown("---")
-        
-        st.subheader("Interactive Prediction Explanation")
-        st.markdown("Enter values to see how each feature affects the prediction:")
-        
-        col1, col2 = st.columns(2)
-        shap_input = {}
-        
-        # Use unique display features
-        for idx, display_feature in enumerate(st.session_state.display_features[:6]):
-            with col1 if idx % 2 == 0 else col2:
-                if 'gender' not in display_feature.lower() and 'age' not in display_feature.lower():
-                    shap_input[display_feature] = st.slider(
-                        display_feature,
-                        min_value=0.0,
-                        max_value=10.0,
-                        value=5.0,
-                        key=f"shap_{idx}"
-                    )
-        
-        if st.button("Explain This Prediction", type="primary"):
-            # Build input with all original features
-            full_input = {}
-            for display_feature, value in shap_input.items():
-                if display_feature in st.session_state.feature_mapping:
-                    for original_feature in st.session_state.feature_mapping[display_feature]:
-                        full_input[original_feature] = value
+            st.markdown("""
+            <div class="info-box">
+                <strong>What this shows:</strong> Which factors most influence stress predictions across all students.
+            </div>
+            """, unsafe_allow_html=True)
             
-            if full_input:
-                input_df = pd.DataFrame([full_input])
-                prediction, probs = predict_stress(
-                    input_df,
-                    st.session_state.model,
-                    st.session_state.scaler,
-                    st.session_state.label_encoder,
-                    st.session_state.original_feature_names
-                )
+            if st.session_state.importance_df is not None:
+                # Use actual SHAP data from models folder
+                importance_df = st.session_state.importance_df.head(15)
                 
-                if prediction is not None:
-                    stress_level = prediction[0]
-                    if stress_level == "Low":
-                        st.success(f"Predicted Stress Level: {stress_level}")
-                    elif stress_level == "Moderate":
-                        st.warning(f"Predicted Stress Level: {stress_level}")
-                    else:
-                        st.error(f"Predicted Stress Level: {stress_level}")
+                display_names = []
+                for f in importance_df['Feature']:
+                    clean = f.split('.')[0] if '.' in f else f
+                    # Keep the full sentence, no truncation
+                    display_names.append(clean)
+
+                importance_df['Display Name'] = display_names
+                
+                # Show top factor
+                top_feature = importance_df.iloc[0]['Display Name']
+                top_importance = importance_df.iloc[0]['Importance']
+                st.metric("Most Important Factor", top_feature, f"Score: {top_importance:.4f}")
+                
+                st.markdown("---")
+                
+                # Bar chart
+                fig_importance = px.bar(importance_df, x='Importance', y='Display Name', 
+                                    orientation='h', 
+                                    title="Top 15 Features Impacting Stress",
+                                    color='Importance', 
+                                    color_continuous_scale='Reds',
+                                    text='Importance',
+                                    height=550)
+                fig_importance.update_traces(texttemplate='%{text:.4f}', textposition='outside', textfont_size=10)
+                fig_importance.update_layout(
+                    xaxis_title="Importance Score",
+                    yaxis_title="",
+                    yaxis={'categoryorder': 'total ascending'},
+                    showlegend=False,
+                    margin=dict(l=0, r=0, t=40, b=0)
+                )
+                st.plotly_chart(fig_importance, use_container_width=True)
+                
+                # Guide at bottom
+                st.markdown("""
+                <div class="info-box">
+                    <strong>How to read:</strong><br>
+                    • Higher importance score = Stronger influence on stress prediction<br>
+                    • Top factors should be prioritized for intervention<br>
+                    • This results is show based on SHAP analysis from default model
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("SHAP data not found. Please ensure 'shap_global_importance.csv' is in the models folder.")
+        
+    with tab2:
+        st.subheader("Your Prediction Explanation")
+        st.markdown("""
+        <div class="info-box">
+            <strong>What this shows:</strong> Which of your responses most affected the stress prediction.
+            Select a previous self-test below to see the key factors that influenced your result.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Check if there are previous self-tests
+        if st.session_state.test_history:
+            # Let user select previous test
+            test_options = []
+            for i, test in enumerate(st.session_state.test_history):
+                time_str = test['timestamp'].strftime("%d/%m/%Y %H:%M")
+                test_options.append(f"{time_str} - {test['stress_level']} Stress")
+            
+            selected_test_idx = st.selectbox(
+                "Select a previous self-test:",
+                range(len(test_options)),
+                format_func=lambda x: test_options[x]
+            )
+            
+            if st.button("Explain This Prediction", type="primary", use_container_width=True):
+                selected_test = st.session_state.test_history[selected_test_idx]
+                responses = selected_test['responses']
+                stress_level = selected_test['stress_level']
+                
+                # Display prediction result
+                if stress_level == "Low":
+                    st.success(f"### Predicted: {stress_level} Stress")
+                elif stress_level == "Moderate":
+                    st.warning(f"### Predicted: {stress_level} Stress")
+                else:
+                    st.error(f"### Predicted: {stress_level} Stress")
+                
+                # Collect all responses for display
+                impact_data = []
+                for feature, value in responses.items():
+                    # Skip gender and age
+                    if 'gender' in feature.lower() or 'age' in feature.lower():
+                        continue
+                        
+                    clean = feature.split('.')[0] if '.' in feature else feature
                     
-                    # Create contribution chart
-                    contributions = []
-                    for feature, value in shap_input.items():
-                        if 'sleep' in feature.lower() and value < 6:
-                            contributions.append((feature, value, 'positive', (7-value)/7))
-                        elif 'work' in feature.lower() and value > 6:
-                            contributions.append((feature, value, 'positive', (value-5)/5))
+                    if isinstance(value, (int, float)):
+                        # Determine effect based on score
+                        if value >= 7:
+                            effect = "Increases Stress"
+                            color = "#dc3545"
+                        elif value <= 3:
+                            effect = "Decreases Stress"
+                            color = "#28a745"
                         else:
-                            contributions.append((feature, value, 'negative', 0.1))
+                            effect = "Neutral"
+                            color = "#6c757d"
+                        
+                        impact_data.append({
+                            "Factor": clean,
+                            "Your Score": value,
+                            "Effect": effect,
+                            "Color": color
+                        })
+                
+                if impact_data:
+                    # Sort by score - highest score first (most impact)
+                    impact_df = pd.DataFrame(impact_data)
+                    impact_df = impact_df.sort_values('Your Score', ascending=False)
                     
-                    contrib_df = pd.DataFrame(contributions, columns=['Feature', 'Value', 'Direction', 'Impact'])
-                    contrib_df = contrib_df.sort_values('Impact', ascending=True)
+                    # Show top 10 factors with highest scores
+                    top_impact_df = impact_df.head(10)
                     
-                    colors = ['#dc3545' if d == 'positive' else '#28a745' for d in contrib_df['Direction']]
+                    # For horizontal bar chart, sort ascending so highest score at top
+                    chart_df = top_impact_df.sort_values('Your Score', ascending=True)
                     
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    ax.barh(contrib_df['Feature'], contrib_df['Impact'], color=colors)
-                    ax.set_xlabel('Impact on Stress Prediction')
-                    ax.set_title('Feature Contribution Analysis')
-                    ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+                    # Horizontal bar chart with x-axis 0-10
+                    fig = px.bar(chart_df, x='Your Score', y='Factor', 
+                                orientation='h',
+                                color='Effect',
+                                color_discrete_map={
+                                    'Increases Stress': '#dc3545',
+                                    'Decreases Stress': '#28a745',
+                                    'Neutral': '#6c757d'
+                                },
+                                title="Your Responses based on self-test results",
+                                text='Your Score')
                     
-                    from matplotlib.patches import Patch
-                    legend_elements = [
-                        Patch(facecolor='#dc3545', label='Increases Stress'),
-                        Patch(facecolor='#28a745', label='Decreases Stress')
-                    ]
-                    ax.legend(handles=legend_elements, loc='lower right')
-                    st.pyplot(fig)
+                    fig.update_traces(textposition='outside', textfont_size=11)
+                    fig.update_layout(
+                        height=450,
+                        xaxis_title="Your Score (0 = Low Stress, 10 = High Stress)",
+                        yaxis_title="",
+                        showlegend=True,
+                        legend_title="Effect",
+                        xaxis=dict(range=[0, 10], tick0=0, dtick=1)
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Summary insight
+                    high_scores = impact_df[impact_df['Your Score'] >= 7]
+                    low_scores = impact_df[impact_df['Your Score'] <= 3]
+                    
+                    if len(high_scores) > 0:
+                        st.warning(f"{len(high_scores)} factors with high scores (≥7) increase your stress level.")
+                    if len(low_scores) > 0:
+                        st.success(f"{len(low_scores)} factors with low scores (≤3) decrease your stress level.")
+                    
+                    st.markdown("""
+                    <div class="info-box">
+                        <strong>How to read:</strong><br>
+                        • Red = High scores (7-10) that increase stress<br>
+                        • Green = Low scores (0-3) that decrease stress<br>
+                        • Gray = Moderate scores (4-6) with neutral effect<br>
+                        • Longer bars = Higher scores that contribute more to stress
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("Unable to analyze responses.")
+        else:
+            st.info("No self-test history found. Please complete a Student Self-Test first.")
+
+        with tab3:
+            st.subheader("Feature Impact Analysis")
+            st.markdown("""
+            <div class="info-box">
+                <strong>What this shows:</strong> How different scores affect stress prediction for each question.
+                Select a feature below to see its impact pattern.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.session_state.importance_df is not None:
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    # Feature selector with cleaned names
+                    available = []
+                    for f in st.session_state.importance_df['Feature'].tolist()[:10]:
+                        clean = f.split('.')[0] if '.' in f else f
+                        if len(clean) > 35:
+                            clean = clean[:32] + "..."
+                        available.append(clean)
+                    
+                    selected = st.selectbox("Select a factor:", available)
+                    
+                    st.markdown("---")
+                    st.markdown("**Impact Pattern**")
+                    
+                    # Determine pattern based on keyword
+                    if 'sleep' in selected.lower():
+                        st.info("Low scores (0-3): Increases stress\nGood scores (7-9): Reduces stress")
+                    elif 'anxiety' in selected.lower() or 'tension' in selected.lower():
+                        st.info("Higher scores = Higher stress")
+                    elif 'academic' in selected.lower() or 'workload' in selected.lower():
+                        st.info("Scores above 6 show increasing stress impact")
+                    elif 'activity' in selected.lower() or 'exercise' in selected.lower():
+                        st.info("Higher scores (7-10) reduce stress")
+                    else:
+                        st.info("Scores above 7 typically increase stress")
+                
+                with col2:
+                    # Impact chart
+                    x_vals = list(range(0, 11))
+                    
+                    if 'sleep' in selected.lower():
+                        y_vals = [0.8, 0.6, 0.4, 0.2, 0.1, 0, 0.1, 0.3, 0.5, 0.7, 0.9]
+                        note = "Low sleep = Higher stress | Good sleep = Lower stress"
+                    elif 'anxiety' in selected.lower() or 'tension' in selected.lower():
+                        y_vals = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]
+                        note = "Higher anxiety = Higher stress"
+                    elif 'academic' in selected.lower() or 'workload' in selected.lower():
+                        y_vals = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
+                        note = "Academic pressure increases stress"
+                    elif 'activity' in selected.lower():
+                        y_vals = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1]
+                        note = "More activity = Lower stress"
+                    else:
+                        y_vals = [0.3, 0.3, 0.4, 0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.7, 0.8]
+                        note = "Higher scores increase stress"
+                    
+                    impact_df = pd.DataFrame({'Score': x_vals, 'Impact': y_vals})
+                    
+                    fig = px.line(impact_df, x='Score', y='Impact',
+                                 title=f"Impact of '{selected}' on Stress",
+                                 markers=True,
+                                 color_discrete_sequence=['#2E86AB'])
+                    fig.update_traces(marker=dict(size=8), line=dict(width=2))
+                    fig.update_layout(
+                        xaxis_title="Your Score (0-10)",
+                        yaxis_title="Influence Level",
+                        height=350,
+                        xaxis=dict(tick0=0, dtick=1)
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    st.caption(f"💡 {note}")
+            else:
+                st.info("SHAP data not available. Please upload 'shap_global_importance.csv' to enable this analysis.")
 
 # ==================================== PAGE 5: BATCH PREDICTION =========================================================
 elif page == "📂 Batch Prediction":
