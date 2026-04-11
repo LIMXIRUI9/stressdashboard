@@ -306,26 +306,27 @@ if page == "🏠 Dashboard Overview":
         **To get started:**
         1. Verify that all required models are successfully loaded. If not, please refresh the page.
         2. Navigate to 'Student Self-Test' to conduct an individual stress assessment.
-        2. Utilize 'Batch Prediction' for processing multiple student records via CSV file.
-        3. Explore 'SHAP Explanations' to understand the factors influencing predictions.
+        3. Utilize 'Batch Prediction' for processing multiple student records via CSV file.
+        4. Explore 'SHAP Explanations' to understand the factors influencing predictions.
         
         **Note:** Model files are automatically loaded, manual loading files is not allowed.
         """)
     else:
-        # ============ TOP METRICS ROW ============
+        # ============ SECTION 1: KEY METRICS ============
+        st.subheader("Key Metrics")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             total_features = len(st.session_state.original_feature_names)
             unique_features = len(st.session_state.display_features)
             st.metric("Total Features", f"{total_features}")
-            st.caption(f"({unique_features} unique)")
+            st.caption(f"({unique_features} unique questions)")
         
         with col2:
             if st.session_state.label_encoder is not None:
                 classes = get_label_encoder_classes(st.session_state.label_encoder)
                 st.metric("Stress Levels", len(classes))
-                st.caption("Low | Moderate | High")
+                st.caption("Low / Moderate / High")
         
         with col3:
             total_predictions = 0
@@ -344,18 +345,19 @@ if page == "🏠 Dashboard Overview":
             st.caption(f"Self-Test: {self_test_count} | Batch: {batch_count}")
         
         with col4:
-            st.metric("Model", "AdaBoost")
-            st.caption("Ensemble Learning")
+            st.metric("ML Model", "AdaBoost")
+            st.caption("Ensemble Learning Method")
         
         st.markdown("---")
         
-        # ============ AGE AND GENDER ANALYSIS ============
-        st.subheader("Age and Gender Analysis")
-        st.caption("Age distribution and gender breakdown from self-tests")
+        # ============ SECTION 2: DEMOGRAPHIC ANALYSIS ============
+        st.subheader("Demographic Analysis")
+        st.caption("Age and gender distribution from self-test participants")
         
         col1, col2 = st.columns(2)
         
         with col1:
+            # Age Distribution - Bar Chart
             ages = []
             if 'test_history' in st.session_state:
                 for test in st.session_state.test_history:
@@ -375,16 +377,22 @@ if page == "🏠 Dashboard Overview":
                 age_group_counts.columns = ['Age Group', 'Count']
                 age_group_counts = age_group_counts.sort_values('Age Group')
                 fig_age = px.bar(age_group_counts, x='Age Group', y='Count',
-                                title=f"Age Distribution ({len(ages)} students)",
+                                title=f"Age Distribution (total={len(ages)})",
                                 color='Count', color_continuous_scale='Blues',
                                 text='Count')
-                fig_age.update_traces(textposition='outside')
-                fig_age.update_layout(yaxis_title="Number of Students", height=400)
+                fig_age.update_traces(textposition='outside', textfont_size=14)
+                fig_age.update_layout(
+                    yaxis_title="Number of Students",
+                    xaxis_title="Age Group",
+                    height=400,
+                    showlegend=False
+                )
                 st.plotly_chart(fig_age, use_container_width=True)
             else:
                 st.info("No age data yet. Complete a Self-Test to see age distribution!")
         
         with col2:
+            # Gender Distribution - Pie Chart
             gender_counts = {'Male': 0, 'Female': 0, 'Prefer not to say': 0}
             
             if 'test_history' in st.session_state:
@@ -406,25 +414,26 @@ if page == "🏠 Dashboard Overview":
                     'Count': list(gender_counts.values())
                 })
                 fig_gender = px.pie(gender_df, values='Count', names='Gender',
-                                   title=f"Gender Distribution ({sum(gender_counts.values())} responses)",
+                                   title=f"Gender Distribution (total={sum(gender_counts.values())})",
                                    color='Gender',
-                                   color_discrete_map={'Male': "#347fdb", 'Female': "#e84343", 'Prefer not to say': '#95a5a6'},
+                                   color_discrete_map={'Male': '#347fdb', 'Female': '#e84343', 'Prefer not to say': '#95a5a6'},
                                    hole=0.4)
-                fig_gender.update_traces(textposition='inside', textinfo='percent+label')
+                fig_gender.update_traces(textposition='inside', textinfo='percent+label', textfont_size=12)
                 fig_gender.update_layout(height=400)
                 st.plotly_chart(fig_gender, use_container_width=True)
             else:
                 st.info("No gender data yet. Complete a Self-Test to see gender distribution!")
         
         st.markdown("---")
-        
-        # ============ STRESS DISTRIBUTION ANALYSIS ============
-        st.subheader("Stress Distribution Analysis")
-        st.caption("Stress levels from predictions and self-tests")
-        
+
+        # ============ SECTION 3: STRESS ANALYSIS  ============
+        st.subheader("Stress Analysis")
+        st.caption("Stress level distribution and top contributing factors")
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
+            # Stress Level Distribution - Bar Chart
             stress_counts = {'Low': 0, 'Moderate': 0, 'High': 0}
             
             if 'prediction_history' in st.session_state:
@@ -444,34 +453,137 @@ if page == "🏠 Dashboard Overview":
                     'Count': list(stress_counts.values())
                 })
                 fig_stress = px.bar(stress_df, x='Stress Level', y='Count', 
-                                   title=f"Stress Distribution ({sum(stress_counts.values())} predictions)",
-                                   color='Stress Level',
-                                   color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'},
-                                   text='Count')
-                fig_stress.update_traces(textposition='outside')
-                fig_stress.update_layout(yaxis_title="Number of Students", height=400)
+                                title="Stress Level Distribution",
+                                color='Stress Level',
+                                color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'},
+                                text='Count')
+                fig_stress.update_traces(textposition='outside', textfont_size=14)
+                fig_stress.update_layout(
+                    yaxis_title="Number of Students",
+                    xaxis_title="Stress Level",
+                    height=400,
+                    showlegend=False
+                )
                 st.plotly_chart(fig_stress, use_container_width=True)
             else:
-                st.info("No prediction data yet. Complete a Self-Test or upload a Batch CSV!")
-        
+                st.info("No prediction data yet.")
+
         with col2:
-            if st.session_state.importance_df is not None:
-                importance_df = st.session_state.importance_df.head(10)
-                fig_importance = px.bar(importance_df, x='Importance', y='Feature', 
-                                       orientation='h', title="Top 10 Features Impacting Stress",
-                                       color='Importance', color_continuous_scale='Reds',
-                                       text='Importance')
-                fig_importance.update_traces(texttemplate='%{text:.3f}', textposition='outside')
-                fig_importance.update_layout(height=400, xaxis_title="SHAP Importance Score")
-                st.plotly_chart(fig_importance, use_container_width=True)
+            # Stress by Category 
+            category_questions = {
+                'Physical Health': [
+                    'rapid heartbeat or palpitations',
+                    'headaches more often',
+                    'illness or health issues',
+                    'gained/lost weight'
+                ],
+                'Mental/Emotional': [
+                    'anxiety or tension',
+                    'get irritated easily',
+                    'sadness or low mood',
+                    'feel lonely or isolated'
+                ],
+                'Academic': [
+                    'trouble concentrating',
+                    'overwhelmed with academic workload',
+                    'lack confidence in academic performance',
+                    'lack confidence in choice of subjects',
+                    'academic and extracurricular activities conflicting',
+                    'attend classes regularly'
+                ],
+                'Social/Environment': [
+                    'competition with peers',
+                    'relationship causes stress',
+                    'difficulties with professors',
+                    'working environment unpleasant',
+                    'hostel or home environment difficulties'
+                ],
+                'Lifestyle': [
+                    'sleep problems',
+                    'struggle to find time for relaxation'
+                ]
+            }
+
+            if 'test_history' in st.session_state and st.session_state.test_history:
+                category_scores = {cat: [] for cat in category_questions.keys()}
+                
+                for test in st.session_state.test_history:
+                    if 'responses' in test:
+                        for category, keywords in category_questions.items():
+                            category_total = 0
+                            count = 0
+                            for response_feature, value in test['responses'].items():
+                                for keyword in keywords:
+                                    if keyword.lower() in response_feature.lower():
+                                        if isinstance(value, (int, float)):
+                                            category_total += value
+                                            count += 1
+                                        break
+                            if count > 0:
+                                category_scores[category].append(category_total / count)
+                
+                avg_category = {}
+                for category, scores in category_scores.items():
+                    if scores:
+                        avg_category[category] = np.mean(scores)
+                    else:
+                        avg_category[category] = 0
+                
+                if any(avg_category.values()):
+                    category_df = pd.DataFrame({
+                        'Category': list(avg_category.keys()),
+                        'Average Stress Score': list(avg_category.values())
+                    }).sort_values('Average Stress Score', ascending=False)
+                    
+                    # Vertical bar chart
+                    fig_category = px.bar(category_df, x='Category', y='Average Stress Score',
+                                        title="Average Stress Score by Category",
+                                        color='Average Stress Score',
+                                        color_continuous_scale='RdYlGn_r',
+                                        text='Average Stress Score')
+                    fig_category.update_traces(texttemplate='%{text:.1f}', textposition='outside', textfont_size=12)
+                    fig_category.update_layout(
+                        height=450,
+                        yaxis_title="Average Stress Score (0-10)",
+                        xaxis_title="Category",
+                        yaxis=dict(range=[0, 10]),
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_category, use_container_width=True)
+                else:
+                    st.info("Complete self-tests to see category breakdown")
             else:
-                st.info("Upload SHAP importance file to see feature importance chart.")
+                st.info("Complete self-tests to see category breakdown")
+        st.markdown("---")
+
+        # ============ SECTION 4: FEATURE IMPORTANCE ============
+        st.subheader("Feature Importance Analysis")
+        st.caption("Top factors affecting stress prediction (SHAP-based)")
+        
+        if st.session_state.importance_df is not None:
+            importance_df = st.session_state.importance_df.head(10)
+            fig_importance = px.bar(importance_df, x='Importance', y='Feature', 
+                                   orientation='h', 
+                                   title="Top 10 Features Impacting Stress",
+                                   color='Importance', 
+                                   color_continuous_scale='Reds',
+                                   text='Importance')
+            fig_importance.update_traces(texttemplate='%{text:.3f}', textposition='outside', textfont_size=12)
+            fig_importance.update_layout(
+                height=500,
+                xaxis_title="SHAP Importance Score",
+                yaxis_title="Feature Name",
+                yaxis={'categoryorder': 'total ascending'}
+            )
+            st.plotly_chart(fig_importance, use_container_width=True)
+        else:
+            st.info("SHAP importance data not available. Please ensure 'shap_global_importance.csv' is present in the models folder.")
         
         st.markdown("---")
         
-        # ============ PREDICTIONS OVER TIME ============
-        st.subheader("Predictions Over Time")
-        st.caption("Track stress patterns over time from your prediction history")
+        # ============ SECTION 5: TRENDS OVER TIME ============
+        st.subheader("Stress Trends Over Time")
+        st.caption("Track how stress levels change over time")
         
         timeline_data = []
         
@@ -497,18 +609,22 @@ if page == "🏠 Dashboard Overview":
             timeline_df = timeline_df.sort_values('Date')
             stress_order = {'Low': 0, 'Moderate': 1, 'High': 2}
             timeline_df['Stress_Numeric'] = timeline_df['Stress Level'].map(stress_order)
+            
             fig_timeline = px.line(timeline_df, x='Date', y='Stress_Numeric', 
-                                   color='Type', title="Stress Level Trends Over Time",
+                                   color='Type', 
+                                   title="Stress Level Trends Over Time",
                                    markers=True,
                                    color_discrete_map={'Self-Test': '#2E86AB', 'Batch': '#F39C12'})
             fig_timeline.update_layout(
                 yaxis_title="Stress Level",
+                xaxis_title="Date",
                 yaxis=dict(
                     tickmode='array',
                     tickvals=[0, 1, 2],
                     ticktext=['Low', 'Moderate', 'High']
                 ),
-                height=450
+                height=450,
+                hovermode='x unified'
             )
             st.plotly_chart(fig_timeline, use_container_width=True)
         else:
@@ -516,34 +632,41 @@ if page == "🏠 Dashboard Overview":
         
         st.markdown("---")
         
-        # ============ RECENT ACTIVITY ============
+        # ============ SECTION 6: RECENT ACTIVITY ============
         st.subheader("Recent Activity")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**Recent Self-Tests**")
+            st.markdown("Recent Self-Tests")
             if 'test_history' in st.session_state and st.session_state.test_history:
                 recent_tests = st.session_state.test_history[-5:]
                 for test in reversed(recent_tests):
                     time_str = test['timestamp'].strftime("%d/%m/%Y %H:%M")
                     if test['stress_level'] == 'Low':
-                        st.success(f"{time_str}: {test['stress_level']} Stress")
+                        st.success(f"{time_str} → {test['stress_level']} Stress")
                     elif test['stress_level'] == 'Moderate':
-                        st.warning(f"{time_str}: {test['stress_level']} Stress")
+                        st.warning(f"{time_str} → {test['stress_level']} Stress")
                     else:
-                        st.error(f"{time_str}: {test['stress_level']} Stress")
+                        st.error(f"{time_str} → {test['stress_level']} Stress")
             else:
-                st.info("No self-test history yet.")
+                st.info("No self-test history yet. Complete your first self-test!")
         
         with col2:
-            st.markdown("**Recent Batch Predictions**")
+            st.markdown("Recent Batch Predictions")
             if 'prediction_history' in st.session_state and st.session_state.prediction_history:
                 recent_batches = st.session_state.prediction_history[-3:]
                 for batch in reversed(recent_batches):
                     time_str = batch['timestamp'].strftime("%d/%m/%Y %H:%M")
                     counts = pd.Series(batch['predictions']).value_counts()
-                    st.caption(f"{time_str}: {len(batch['data'])} students - Low: {counts.get('Low', 0)}, Moderate: {counts.get('Moderate', 0)}, High: {counts.get('High', 0)}")
+                    st.markdown(f"""
+                    **{time_str}**  
+                    - Total: {len(batch['data'])} students  
+                    - Low: {counts.get('Low', 0)}  
+                    - Moderate: {counts.get('Moderate', 0)}  
+                    - High: {counts.get('High', 0)}
+                    """)
+                    st.markdown("---")
             else:
                 st.info("No batch prediction history yet.")
 
