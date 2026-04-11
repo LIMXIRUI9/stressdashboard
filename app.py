@@ -123,7 +123,7 @@ def get_unique_display_features(feature_names):
     seen_features = set()
     
     for feature in feature_names:
-        # Clean the feature name (remove .1, .2, etc.)
+        # Clean the feature name remove the duplicate columns
         clean_feature = feature.split('.')[0] if '.' in feature else feature
         
         if clean_feature.lower() not in seen_features:
@@ -137,7 +137,7 @@ def create_feature_mapping(original_features):
     feature_mapping = {}
     
     for feature in original_features:
-        # Get base name (remove .1, .2, .3 suffixes)
+        # Get base name 
         base_name = feature.split('.')[0] if '.' in feature else feature
         
         if base_name not in feature_mapping:
@@ -151,7 +151,7 @@ with st.sidebar:
     st.markdown("# XAI Stress Detection")
     st.markdown("---")
     
-    # Navigation with emojis
+    # Navigation panel
     st.markdown("### Navigation")
     page = st.sidebar.radio(
         "Select Module:",
@@ -237,7 +237,7 @@ def auto_load_models():
         else:
             return None, None, None, None, None, None, "Label encoder file not found"
         
-        # Load feature names (keep ALL original features)
+        # Load feature names 
         feature_names_path = os.path.join(models_path, 'feature_names.pkl')
         if os.path.exists(feature_names_path):
             with open(feature_names_path, 'rb') as f:
@@ -259,7 +259,7 @@ def auto_load_models():
 # Load models
 model, scaler, label_encoder, original_feature_names, shap_values, importance_df, load_error = auto_load_models()
 
-# Initialize session state for models (keep ALL original features)
+# Initialize session state for models 
 if 'model' not in st.session_state:
     st.session_state.model = model
     st.session_state.scaler = scaler
@@ -281,7 +281,7 @@ if 'prediction_history' not in st.session_state:
 # =================================== PREDICTION FUNCTION ===================================================
 def predict_stress(features_df, model, scaler, label_encoder, feature_names):
     try:
-        # Ensure we only use the features the model expects
+        # Ensure use the features the model expects
         X = features_df[feature_names].copy()
         X_scaled = scaler.transform(X)
         predictions = model.predict(X_scaled)
@@ -469,7 +469,7 @@ if page == "🏠 Dashboard Overview":
                 st.info("No prediction data yet.")
 
         with col2:
-            # Stress by Category 
+            # Stress by Category (Bar chart)
             category_questions = {
                 'Physical Health': [
                     'rapid heartbeat or palpitations',
@@ -650,7 +650,7 @@ if page == "🏠 Dashboard Overview":
                     else:
                         st.error(f"{time_str} → {test['stress_level']} Stress")
             else:
-                st.info("No self-test history yet. Complete your first self-test!")
+                st.info("No self-test history yet.")
         
         with col2:
             st.markdown("Recent Batch Predictions")
@@ -670,7 +670,7 @@ if page == "🏠 Dashboard Overview":
             else:
                 st.info("No batch prediction history yet.")
 
-# ==================================== PAGE 2: UPLOAD MODEL FILES =========================================
+# ==================================== PAGE 2: MODEL FILES STATUS =========================================
 elif page == "📤 Model Files Status":
     st.header("Model Configuration")
     
@@ -699,7 +699,7 @@ elif page == "📤 Model Files Status":
         
         st.markdown("---")
         
-        # Clear models with confirmation
+        # Clear models with confirmation alert box
         if 'confirm_clear' not in st.session_state:
             st.session_state.confirm_clear = False
         
@@ -753,7 +753,7 @@ elif page == "📝 Student Self-Test":
     st.markdown("Complete the questionnaire to get your personalized stress level assessment.")
     
     if st.session_state.model is None:
-        st.warning("No model loaded. Please upload your model files first.")
+        st.warning("No model loaded. Please refresh the page to load the model files first.")
     else:
         st.markdown("""
         <div class="info-box">
@@ -770,7 +770,7 @@ elif page == "📝 Student Self-Test":
         col1, col2 = st.columns(2)
         user_input = {}
         
-        # Display only unique features (no .1, .2 duplicates)
+        # Display only unique features hidden the duplicate features
         for idx, display_feature in enumerate(st.session_state.display_features):
             with col1 if idx % 2 == 0 else col2:
                 
@@ -784,7 +784,7 @@ elif page == "📝 Student Self-Test":
                     gender_mapping = {'Male': 0, 'Female': 1, 'Prefer not to say': 2}
                     value = gender_mapping[selected]
                     
-                    # Store value for ALL original feature variants
+                    # Store value for original feature variants
                     for original_feature in st.session_state.feature_mapping[display_feature]:
                         user_input[original_feature] = value
                     st.caption(f"Selected: {selected}")
@@ -800,7 +800,7 @@ elif page == "📝 Student Self-Test":
                         key=f"age_{idx}"
                     )
                     
-                    # Store value for ALL original feature variants
+                    # Store value for original feature variants
                     for original_feature in st.session_state.feature_mapping[display_feature]:
                         user_input[original_feature] = value
                     
@@ -824,7 +824,7 @@ elif page == "📝 Student Self-Test":
                         key=f"slider_{idx}"
                     )
                     
-                    # Store value for ALL original feature variants
+                    # Store value for original feature variants
                     for original_feature in st.session_state.feature_mapping[display_feature]:
                         user_input[original_feature] = value
                     
@@ -886,7 +886,7 @@ elif page == "📝 Student Self-Test":
                             'responses': user_input.copy()
                         })
                         
-                        # Display result with styling
+                        # Display result by different stress level
                         if stress_level.lower() == "low":
                             st.markdown("""
                             <div class="prediction-low">
@@ -977,17 +977,17 @@ elif page == "📝 Student Self-Test":
                             recommendations_text = """
                             RECOMMENDED ACTIONS
                             
-                            Daily Habits to Reduce Stress
+                            1. Daily Habits to Reduce Stress
                             - 5-10 minutes of meditation daily
                             - Maintain consistent sleep schedule (7-9 hours)
                             - 20-30 minutes of physical activity daily
                             
-                            Work/Life Balance
+                            2. Work/Life Balance
                             - Create a realistic daily schedule
                             - Take regular breaks (5 min every hour)
                             - Set achievable goals
                             
-                            Stress Management Techniques
+                            3. Stress Management Techniques
                             - Practice time management
                             - Learn to say no to additional commitments
                             - Connect with supportive friends
@@ -1004,17 +1004,17 @@ elif page == "📝 Student Self-Test":
                             recommendations_text = """
                             MAINTAIN YOUR HEALTHY HABITS
                             
-                            Keep Up the Good Work
+                            1. Keep Up the Good Work
                             - Continue your current healthy routines
                             - Keep monitoring your stress levels weekly
                             - Practice mindfulness to build resilience
                             
-                            Prevention Strategies
+                            2. Prevention Strategies
                             - Practice gratitude journaling
                             - Stay connected with friends and family
                             - Schedule regular self-care activities
                             
-                            Stay Proactive
+                            3. Stay Proactive
                             - Maintain work-life balance
                             - Get adequate sleep and exercise
                             - Eat a balanced diet
@@ -1032,6 +1032,7 @@ elif page == "📝 Student Self-Test":
 
                 class PDF(FPDF):
                     def header(self):
+                        # styling for the pdf report 
                         # Add header background
                         self.set_fill_color(46, 134, 171)
                         self.rect(0, 0, 210, 40, 'F')
@@ -1114,7 +1115,6 @@ elif page == "📝 Student Self-Test":
 
                 # CONFIDENCE SCORES SECTION
                 pdf.section_title("CONFIDENCE SCORES")
-                # Add explanation
                 pdf.add_explanation("The confidence scores below indicate how certain the model is about each stress level prediction. Higher percentages mean the model is more confident in that classification.")
 
                 for i, level in enumerate(classes):
@@ -1192,7 +1192,7 @@ elif page == "📝 Student Self-Test":
                     pdf.set_text_color(0, 0, 0)
                     pdf.cell(130, 8, feature[:60], 0, 0, 'L')
                     
-                    # Score - always black for gender and age, colored for regular questions
+                    # Score 
                     if 'gender' in feature.lower() or 'age' in feature.lower():
                         pdf.set_text_color(0, 0, 0)
                         pdf.set_font('Arial', 'B', 10)
@@ -1226,91 +1226,142 @@ elif page == "📝 Student Self-Test":
                         pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
                         pdf.ln(2)
 
-                # RECOMMENDATIONS SECTION 
+                # RECOMMENDATIONS SECTION - Standardized with display version
                 pdf.ln(5)
                 pdf.section_title("RECOMMENDATIONS")
 
-                # Common explanation based on stress level
+                # Add explanation based on stress level
                 if stress_level.lower() == "high":
-                    pdf.add_explanation("Based on your responses, the following recommendations can help you manage your stress levels effectively:")
-                elif stress_level.lower() == "moderate":
-                    pdf.add_explanation("Based on your responses, the following recommendations can help you reduce and manage your stress levels:")
-                else:
-                    pdf.add_explanation("Based on your responses, the following recommendations can help you maintain your current well-being:")
-
-                # Standard header with stress level color
-                pdf.set_fill_color(stress_color[0], stress_color[1], stress_color[2])
-                pdf.set_text_color(255, 255, 255)
-                pdf.set_font('Arial', 'B', 11)
-                pdf.cell(0, 8, f"{stress_level.upper()} STRESS - RECOMMENDATIONS", 0, 1, 'C')
-                pdf.set_text_color(0, 0, 0)
-
-                # Section 1: Immediate Actions / Daily Habits
-                pdf.set_font('Arial', 'B', 10)
-                pdf.set_text_color(46, 134, 171)
-                pdf.cell(0, 6, "1. Daily Self-Care Practices", 0, 1, 'L')
-                pdf.set_font('Arial', '', 10)
-                pdf.set_text_color(60, 60, 60)
-
-                if stress_level.lower() == "high":
-                    pdf.multi_cell(0, 5, "   - Practice deep breathing exercises (5-10 minutes daily)\n   - Prioritize 7-9 hours of sleep each night\n   - Take short walks (10-15 minutes) to clear your mind", 0, 1)
-                elif stress_level.lower() == "moderate":
-                    pdf.multi_cell(0, 5, "   - Set aside 10 minutes daily for meditation or relaxation\n   - Maintain a consistent sleep schedule\n   - Incorporate 20-30 minutes of physical activity into your routine", 0, 1)
-                else:
-                    pdf.multi_cell(0, 5, "   - Continue your current healthy routines\n   - Keep monitoring your stress levels weekly\n   - Practice mindfulness to build resilience", 0, 1)
-                pdf.ln(2)
-
-                # Section 2: Lifestyle Adjustments
-                pdf.set_font('Arial', 'B', 10)
-                pdf.set_text_color(46, 134, 171)
-                pdf.cell(0, 6, "2. Lifestyle Adjustments", 0, 1, 'L')
-                pdf.set_font('Arial', '', 10)
-                pdf.set_text_color(60, 60, 60)
-
-                if stress_level.lower() == "high":
-                    pdf.multi_cell(0, 5, "   - Break large tasks into smaller, manageable steps\n   - Set realistic daily goals\n   - Reduce caffeine and sugar intake", 0, 1)
-                elif stress_level.lower() == "moderate":
-                    pdf.multi_cell(0, 5, "   - Create a balanced daily schedule\n   - Take regular breaks (5 minutes every hour)\n   - Learn to say no to additional commitments", 0, 1)
-                else:
-                    pdf.multi_cell(0, 5, "   - Maintain work-life balance\n   - Get adequate sleep (7-9 hours)\n   - Eat a balanced, nutritious diet", 0, 1)
-                pdf.ln(2)
-
-                # Section 3: Social Support & Professional Help
-                pdf.set_font('Arial', 'B', 10)
-                pdf.set_text_color(46, 134, 171)
-                pdf.cell(0, 6, "3. Social Support & Professional Help", 0, 1, 'L')
-                pdf.set_font('Arial', '', 10)
-                pdf.set_text_color(60, 60, 60)
-
-                if stress_level.lower() == "high":
-                    pdf.multi_cell(0, 5, "   - Talk to a counselor or mental health professional\n   - Reach out to trusted friends or family members\n   - Consider joining a support group", 0, 1)
-                elif stress_level.lower() == "moderate":
-                    pdf.multi_cell(0, 5, "   - Connect with supportive friends and family\n   - Share your feelings with someone you trust\n   - Consider speaking with a counselor if stress persists", 0, 1)
-                else:
-                    pdf.multi_cell(0, 5, "   - Stay connected with friends and family\n   - Schedule regular social activities\n   - Practice gratitude journaling", 0, 1)
-                pdf.ln(5)
-
-                # Remember box 
-                pdf.set_fill_color(248, 249, 250)
-                pdf.set_draw_color(stress_color[0], stress_color[1], stress_color[2])
-                pdf.rect(10, pdf.get_y(), 190, 25, 'F')
-                pdf.set_font('Arial', 'B', 9)
-                pdf.set_text_color(stress_color[0], stress_color[1], stress_color[2])
-                pdf.set_xy(15, pdf.get_y() + 2)
-                pdf.cell(0, 5, "REMEMBER", 0, 1, 'L')
-                pdf.set_font('Arial', 'I', 8)
-                pdf.set_text_color(100, 100, 100)
-                pdf.set_xy(15, pdf.get_y() + 2)
-
-                if stress_level.lower() == "high":
+                    pdf.add_explanation("Based on your responses, immediate action is recommended to address your stress levels. The following strategies can help you manage stress effectively:")
+                    
+                    # 1. Professional Support
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(220, 53, 69)
+                    pdf.cell(0, 6, "1. Professional Support (Priority)", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Talk to a counselor or mental health professional\n   - Call a mental health helpline if you need immediate support", 0, 1)
+                    pdf.ln(2)
+                    
+                    # 2. Immediate Self-Care
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(220, 53, 69)
+                    pdf.cell(0, 6, "2. Immediate Self-Care (Today)", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Practice deep breathing: Inhale 4 sec, hold 4 sec, exhale 4 sec\n   - Prioritize sleep - aim for 7-9 hours tonight\n   - Take a 10-15 minute walk outside", 0, 1)
+                    pdf.ln(5)
+                    
+                    # 3. Short-term Stress Management
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(220, 53, 69)
+                    pdf.cell(0, 6, "3. Short-term Stress Management", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Break large tasks into smaller steps\n   - Set realistic daily goals\n   - Reach out to trusted friends or family", 0, 1)
+                    pdf.ln(5)
+                    
+                    # Remember note
+                    pdf.set_fill_color(255, 245, 245)
+                    pdf.set_draw_color(220, 53, 69)
+                    pdf.rect(10, pdf.get_y(), 190, 25, 'F')
+                    pdf.set_font('Arial', 'B', 9)
+                    pdf.set_text_color(220, 53, 69)
+                    pdf.set_xy(15, pdf.get_y() + 2)
+                    pdf.cell(0, 5, "REMEMBER", 0, 1, 'L')
+                    pdf.set_font('Arial', 'I', 8)
+                    pdf.set_text_color(100, 100, 100)
+                    pdf.set_xy(15, pdf.get_y() + 2)
                     pdf.multi_cell(180, 4, "You are not alone - many students experience high stress. Seeking help is a sign of strength, not weakness. Take one step at a time.", 0, 1)
+
                 elif stress_level.lower() == "moderate":
+                    pdf.add_explanation("Your responses indicate moderate stress levels. Implementing these recommendations can help prevent stress from escalating:")
+                    
+                    # 1. Daily Habits to Reduce Stress
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(255, 140, 0)
+                    pdf.cell(0, 6, "1. Daily Habits to Reduce Stress", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - 5-10 minutes of meditation daily\n   - Maintain consistent sleep schedule (7-9 hours)\n   - 20-30 minutes of physical activity daily", 0, 1)
+                    pdf.ln(2)
+                    
+                    # 2. Work/Life Balance
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(255, 140, 0)
+                    pdf.cell(0, 6, "2. Work/Life Balance", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Create a realistic daily schedule\n   - Take regular breaks (5 min every hour)\n   - Set achievable goals", 0, 1)
+                    pdf.ln(5)
+                    
+                    # 3. Stress Management Techniques
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(255, 140, 0)
+                    pdf.cell(0, 6, "3. Stress Management Techniques", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Practice time management\n   - Learn to say no to additional commitments\n   - Connect with supportive friends", 0, 1)
+                    pdf.ln(5)
+                    
+                    # Remember note
+                    pdf.set_fill_color(255, 252, 235)
+                    pdf.set_draw_color(255, 193, 7)
+                    pdf.rect(10, pdf.get_y(), 190, 25, 'F')
+                    pdf.set_font('Arial', 'B', 9)
+                    pdf.set_text_color(255, 140, 0)
+                    pdf.set_xy(15, pdf.get_y() + 2)
+                    pdf.cell(0, 5, "REMEMBER", 0, 1, 'L')
+                    pdf.set_font('Arial', 'I', 8)
+                    pdf.set_text_color(100, 100, 100)
+                    pdf.set_xy(15, pdf.get_y() + 2)
                     pdf.multi_cell(180, 4, "Small changes today can prevent bigger problems tomorrow. It's okay to ask for help before stress becomes overwhelming.", 0, 1)
-                else:
-                    pdf.multi_cell(180, 4, "Maintaining these habits will help you stay resilient during challenging times. Prevention is the best strategy!", 0, 1)
+
+                else:  # Low Stress
+                    pdf.add_explanation("Your responses indicate good stress management. Continue these healthy habits to maintain your well-being:")
+                    
+                    # 1. Keep Up the Good Work
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(40, 167, 69)
+                    pdf.cell(0, 6, "1. Keep Up the Good Work", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Continue your current healthy routines\n   - Keep monitoring your stress levels weekly\n   - Practice mindfulness to build resilience", 0, 1)
+                    pdf.ln(2)
+                    
+                    # 2. Prevention Strategies
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(40, 167, 69)
+                    pdf.cell(0, 6, "2. Prevention Strategies", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Practice gratitude journaling\n   - Stay connected with friends and family\n   - Schedule regular self-care activities", 0, 1)
+                    pdf.ln(5)
+                    
+                    # 3. Stay Proactive
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(40, 167, 69)
+                    pdf.cell(0, 6, "3. Stay Proactive", 0, 1, 'L')
+                    pdf.set_font('Arial', '', 10)
+                    pdf.set_text_color(60, 60, 60)
+                    pdf.multi_cell(0, 5, "   - Maintain work-life balance\n   - Get adequate sleep and exercise\n   - Eat a balanced diet", 0, 1)
+                    pdf.ln(5)
+                    
+                    # Remember note
+                    pdf.set_fill_color(240, 255, 240)
+                    pdf.set_draw_color(40, 167, 69)
+                    pdf.rect(10, pdf.get_y(), 190, 25, 'F')
+                    pdf.set_font('Arial', 'B', 9)
+                    pdf.set_text_color(40, 167, 69)
+                    pdf.set_xy(15, pdf.get_y() + 2)
+                    pdf.cell(0, 5, "REMEMBER", 0, 1, 'L')
+                    pdf.set_font('Arial', 'I', 8)
+                    pdf.set_text_color(100, 100, 100)
+                    pdf.set_xy(15, pdf.get_y() + 2)
+                    pdf.multi_cell(180, 4, "Maintaining these habits will help you stay resilient during challenging times!", 0, 1)
 
                 # Separate note
-                pdf.ln(10)
+                pdf.ln(30)
                 pdf.set_font('Arial', 'I', 8)
                 pdf.set_text_color(100, 100, 100)
                 pdf.multi_cell(0, 4, "Note: This report is generated by the XAI Stress Detection System using an AdaBoost machine learning model with SHAP explanations. It is intended for educational and self-awareness purposes only. For medical concerns, please consult a healthcare professional.", 0, 1)
