@@ -948,6 +948,117 @@ elif page == "📝 Student Self-Test":
                         fig.update_layout(yaxis_range=[0, 100])
                         fig.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
                         st.plotly_chart(fig, use_container_width=True)
+
+                        # After confidence chart, before recommendations
+                        st.subheader("Why This Prediction?")
+                        st.markdown("Understanding which factors most influenced your stress level using XAI techniques:")
+
+                        # Get feature importance from SHAP data
+                        shap_importance = {}
+                        if st.session_state.importance_df is not None:
+                            for _, row in st.session_state.importance_df.iterrows():
+                                clean_name = row['Feature'].split('.')[0] if '.' in row['Feature'] else row['Feature']
+                                shap_importance[clean_name.lower()] = row['Importance']
+
+                        # Collect user's responses for analysis
+                        impact_data = []
+                        for feature, value in user_input.items():
+                            # Skip gender and age
+                            if 'gender' in feature.lower() or 'age' in feature.lower():
+                                continue
+                                
+                            clean = feature.split('.')[0] if '.' in feature else feature
+                            
+                            if isinstance(value, (int, float)):
+                                # Get SHAP importance weight
+                                importance_weight = 1.0
+                                for shap_feature, weight in shap_importance.items():
+                                    if shap_feature in clean.lower() or clean.lower() in shap_feature:
+                                        importance_weight = weight
+                                        break
+                                
+                                # Calculate weighted impact
+                                distance = abs(value - 5)
+                                raw_impact = distance / 5
+                                weighted_impact = raw_impact * importance_weight
+                                
+                                if value >= 7:
+                                    effect = "Increases Stress"
+                                    color = "#dc3545"
+                                elif value <= 3:
+                                    effect = "Decreases Stress"
+                                    color = "#28a745"
+                                else:
+                                    effect = "Neutral"
+                                    color = "#6c757d"
+                                    weighted_impact = 0.05
+                                
+                                impact_data.append({
+                                    "Factor": clean,
+                                    "Your Score": value,
+                                    "Impact": weighted_impact,
+                                    "Effect": effect
+                                })
+
+                        if impact_data:
+                            # Sort by score (highest first)
+                            impact_df = pd.DataFrame(impact_data)
+                            impact_df = impact_df.sort_values('Your Score', ascending=False)
+                            
+                            # Show top 8 factors
+                            top_impact_df = impact_df.head(10)
+                            chart_df = top_impact_df.sort_values('Your Score', ascending=True)
+                            
+                            # Full width bar chart
+                            fig = px.bar(chart_df, x='Your Score', y='Factor', 
+                                        orientation='h',
+                                        color='Effect',
+                                        color_discrete_map={
+                                            'Increases Stress': '#dc3545',
+                                            'Decreases Stress': '#28a745',
+                                            'Neutral': '#6c757d'
+                                        },
+                                        title="Top 10 on How Your Responses Affected the Prediction",
+                                        text='Your Score',
+                                        height=500)
+                            
+                            fig.update_traces(textposition='outside', textfont_size=11)
+                            fig.update_layout(
+                                xaxis_title="Your Score (0 = Low Stress, 10 = High Stress)",
+                                yaxis_title="",
+                                showlegend=True,
+                                legend_title="Effect",
+                                xaxis=dict(range=[0, 10], tick0=0, dtick=1),
+                                height=500,
+                                margin=dict(l=0, r=0, t=40, b=0)
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Summary stats
+                            high_count = len(impact_df[impact_df['Your Score'] >= 7])
+                            moderate_count = len(impact_df[(impact_df['Your Score'] >= 4) & (impact_df['Your Score'] <= 6)])
+                            low_count = len(impact_df[impact_df['Your Score'] <= 3])
+
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("High Score (≥7)", high_count, "Increases Stress")
+                            with col2:
+                                st.metric("Moderate Score (4-6)", moderate_count, "Neutral Effect")
+                            with col3:
+                                st.metric("Low Score (≤3)", low_count, "Decreases Stress")
+                            
+                            st.markdown("""
+                            <div class="info-box">
+                                <strong>How to read this chart:</strong><br>
+                                • Red bars = Scores 7-10 that increase stress<br>
+                                • Green bars = Scores 0-3 that decrease stress<br>
+                                • Gray bars = Scores 4-6 with neutral effect<br>
+                                • Longer bars = Higher scores that contribute more to stress<br>
+                                • Questions appear in the same order as the questionnaire not ranked
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        st.markdown("---")
                         
                         # ==================== RECOMMENDATIONS SECTION ====================
                         st.subheader("Personalized Recommendations")
@@ -1034,14 +1145,12 @@ elif page == "📝 Student Self-Test":
                             Maintaining these habits will help you stay resilient during challenging times!
                             """)
                         
-                # ==================== DOWNLOAD RESULTS AS PDF ====================
+               # ==================== DOWNLOAD RESULTS AS PDF ====================
                 st.markdown("---")
                 st.subheader("Download Report")
 
                 class PDF(FPDF):
                     def header(self):
-                        # styling for the pdf report 
-                        # Add header background
                         self.set_fill_color(46, 134, 171)
                         self.rect(0, 0, 210, 40, 'F')
                         
@@ -1137,6 +1246,8 @@ elif page == "📝 Student Self-Test":
                 # Add interpretation guide
                 pdf.add_explanation("Interpretation: Low confidence (<50%) suggests uncertainty, while high confidence (>70%) indicates strong prediction certainty.")
                 pdf.ln(5)
+
+                # RESPONSES SUMMARY SECTION
                 pdf.section_title("RESPONSES SUMMARY")
                 pdf.add_explanation("Your responses to each question are summarized below. Scores range from 0 (Never/Low) to 10 (Always/High).")
 
@@ -1186,25 +1297,37 @@ elif page == "📝 Student Self-Test":
                             response_items.append((display_feature, display_value, interpretation, numeric_val))
                             break
 
-                # Display all questions in a single column
+                # FIXED RESPONSES TABLE - All on same line
                 pdf.set_font('Arial', '', 10)
 
+                # Calculate page width for full width table
+                page_width = pdf.w - pdf.l_margin - pdf.r_margin
+
+                # Column widths
+                width_number = 12      # Question number column
+                width_score = 25       # Score column
+                width_interpretation = 35  # Interpretation column
+                width_feature = page_width - width_number - width_score - width_interpretation - 10  # Remaining for feature
+
                 for idx, (feature, display_value, interpretation, numeric_val) in enumerate(response_items):
+                    # Get current Y position
+                    start_y = pdf.get_y()
+                    
                     # Question number
                     pdf.set_font('Arial', 'B', 10)
                     pdf.set_text_color(46, 134, 171)
-                    pdf.cell(15, 8, f"{idx + 1}.", 0, 0, 'L')
+                    pdf.cell(width_number, 8, f"{idx + 1}.", 0, 0, 'L')
                     
-                    # Question text
-                    pdf.set_font('Arial', '', 10)
+                    # FULL FEATURE NAME (no truncation)
+                    pdf.set_font('Arial', '', 9)
                     pdf.set_text_color(0, 0, 0)
-                    pdf.cell(130, 8, feature[:60], 0, 0, 'L')
+                    pdf.cell(width_feature, 8, feature, 0, 0, 'L')
                     
-                    # Score 
+                    # Score column
                     if 'gender' in feature.lower() or 'age' in feature.lower():
                         pdf.set_text_color(0, 0, 0)
                         pdf.set_font('Arial', 'B', 10)
-                        pdf.cell(20, 8, display_value, 0, 0, 'C')
+                        pdf.cell(width_score, 8, display_value, 0, 0, 'C')
                     else:
                         if numeric_val is not None:
                             if numeric_val <= 2:
@@ -1221,21 +1344,146 @@ elif page == "📝 Student Self-Test":
                             pdf.set_text_color(0, 0, 0)
                         
                         pdf.set_font('Arial', 'B', 10)
-                        pdf.cell(20, 8, display_value, 0, 0, 'C')
+                        pdf.cell(width_score, 8, display_value, 0, 0, 'C')
                     
-                    # Interpretation
+                    # Interpretation column
                     pdf.set_font('Arial', 'I', 8)
                     pdf.set_text_color(100, 100, 100)
-                    pdf.cell(0, 8, interpretation, 0, 1, 'L')
+                    pdf.cell(width_interpretation, 8, interpretation, 0, 1, 'L')
                     
-                    # Add light separator line
+                    # Add light separator line between rows
                     if idx < len(response_items) - 1:
                         pdf.set_draw_color(230, 230, 230)
-                        pdf.line(10, pdf.get_y() + 2, 200, pdf.get_y() + 2)
-                        pdf.ln(2)
+                        pdf.line(10, pdf.get_y() + 2, page_width + 10, pdf.get_y() + 2)
+                        pdf.ln(4)  # Space after separator line
 
-                # RECOMMENDATIONS SECTION - Standardized with display version
+                # ============ SHAP ANALYSIS SECTION (NO BORDERS) ============
+                pdf.ln(8)
+                pdf.section_title("SHAP ANALYSIS - KEY STRESS FACTORS")
+
+                # Get SHAP importance data
+                shap_importance = {}
+                if st.session_state.importance_df is not None:
+                    for _, row in st.session_state.importance_df.iterrows():
+                        clean_name = row['Feature'].split('.')[0] if '.' in row['Feature'] else row['Feature']
+                        shap_importance[clean_name.lower()] = row['Importance']
+
+                # Collect impact data for SHAP analysis
+                impact_data = []
+                for feature, value in user_input.items():
+                    if 'gender' in feature.lower() or 'age' in feature.lower():
+                        continue
+                        
+                    clean = feature.split('.')[0] if '.' in feature else feature
+                    
+                    if isinstance(value, (int, float)):
+                        importance_weight = 1.0
+                        for shap_feature, weight in shap_importance.items():
+                            if shap_feature in clean.lower() or clean.lower() in shap_feature:
+                                importance_weight = weight
+                                break
+                        
+                        if value >= 7:
+                            effect = "High (7-10)"
+                            category = "Stress Contributor"
+                        elif value <= 3:
+                            effect = "Low (0-3)"
+                            category = "Stress Reducer"
+                        else:
+                            effect = "Moderate (4-6)"
+                            category = "Neutral"
+                        
+                        impact_data.append({
+                            "Factor": clean,
+                            "Score": value,
+                            "Level": effect,
+                            "Category": category
+                        })
+
+                if impact_data:
+                    # Sort by score (highest first)
+                    impact_df = pd.DataFrame(impact_data)
+                    impact_df = impact_df.sort_values('Score', ascending=False)
+                    
+                    # Show top 10 factors
+                    top_impact_df = impact_df.head(10)
+                    
+                    pdf.set_font('Arial', 'I', 10)
+                    pdf.set_text_color(100, 100, 100)
+                    pdf.cell(0, 8, "The following top 10 factors had the highest scores in your assessment:", 0, 1, 'L')
+                    pdf.ln(3)
+                    
+                    # STANDARDIZED SHAP TABLE - NO BORDERS
+                    page_width = pdf.w - pdf.l_margin - pdf.r_margin
+                    
+                    width_factor = page_width * 0.58    # 58% for Factor (full names)
+                    width_score = page_width * 0.12     # 12% for Score
+                    width_category = page_width * 0.30  # 30% for Category
+                    
+                    # Header row (no borders)
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_text_color(0, 0, 0)
+                    pdf.cell(width_factor, 8, "Factor", 0, 0, 'L')
+                    pdf.cell(width_score, 8, "Score", 0, 0, 'C')
+                    pdf.cell(width_category, 8, "Category", 0, 1, 'L')
+                    
+                    # Separator line under header
+                    pdf.set_draw_color(200, 200, 200)
+                    pdf.line(10, pdf.get_y(), page_width + 10, pdf.get_y())
+                    pdf.ln(5)
+                    
+                    # Data rows (no borders)
+                    pdf.set_font('Arial', '', 10)
+                    
+                    for idx, row in top_impact_df.iterrows():
+                        # FULL FEATURE NAME (no truncation)
+                        factor_text = row['Factor']
+                        
+                        # Factor column
+                        pdf.cell(width_factor, 7, factor_text, 0, 0, 'L')
+                        
+                        # Score column - centered
+                        pdf.set_font('Arial', 'B', 10)
+                        pdf.cell(width_score, 7, str(row['Score']), 0, 0, 'C')
+                        
+                        # Category column with color coding
+                        pdf.set_font('Arial', '', 10)
+                        if row['Category'] == "Stress Contributor":
+                            pdf.set_text_color(220, 53, 69)
+                        elif row['Category'] == "Stress Reducer":
+                            pdf.set_text_color(40, 167, 69)
+                        else:
+                            pdf.set_text_color(100, 100, 100)
+                        
+                        pdf.cell(width_category, 7, row['Category'], 0, 1, 'L')
+                        pdf.set_text_color(0, 0, 0)
+                        
+                        # Add consistent spacing between rows (3 units)
+                        pdf.ln(3)
+                    
+                    pdf.ln(6)
+                    
+                    # Summary statistics
+                    high_count = len(impact_df[impact_df['Score'] >= 7])
+                    moderate_count = len(impact_df[(impact_df['Score'] >= 4) & (impact_df['Score'] <= 6)])
+                    low_count = len(impact_df[impact_df['Score'] <= 3])
+                    
+                    # Separator line before summary
+                    pdf.set_draw_color(200, 200, 200)
+                    pdf.line(10, pdf.get_y(), page_width + 10, pdf.get_y())
+                    pdf.ln(5)
+                    
+                    pdf.set_font('Arial', 'B', 9)
+                    pdf.set_text_color(0, 0, 0)
+                    pdf.multi_cell(0, 5, f"Summary: {high_count} factors with scores 7-10 (stress contributors), {low_count} factors with scores 0-3 (stress reducers), {moderate_count} factors with scores 4-6 (neutral).", 0, 'L')
+                    
+                    pdf.ln(4)
+                    pdf.set_font('Arial', 'I', 8)
+                    pdf.set_text_color(80, 80, 80)
+                    pdf.multi_cell(0, 4, "Note: Scores of 7-10 indicate high stress levels that increase overall stress. Scores of 0-3 indicate low stress levels that decrease overall stress. Scores of 4-6 have minimal impact.", 0, 'L')
+
                 pdf.ln(5)
+                # RECOMMENDATIONS SECTION
                 pdf.section_title("RECOMMENDATIONS")
 
                 # Add explanation based on stress level
@@ -1397,10 +1645,10 @@ elif page == "🔍 SHAP Explanations":
     if st.session_state.model is None:
         st.warning("No model loaded. Please refresh the page to load the model files first.")
     else:
-        # Tab layout for different SHAP views
-        tab1, tab2, tab3 = st.tabs(["Global Importance", "Your Prediction", "Feature Impact"])
+        # Tab layout for different SHAP views - removed "Your Prediction" tab
+        tab1, tab2 = st.tabs(["Global Importance", "Feature Impact"])
         
-        with tab1: #Global feature importance
+        with tab1:  # Global feature importance
             st.subheader("Global Feature Importance")
             st.markdown("""
             <div class="info-box">
@@ -1451,134 +1699,13 @@ elif page == "🔍 SHAP Explanations":
                     <strong>How to read:</strong><br>
                     • Higher importance score = Stronger influence on stress prediction<br>
                     • Top factors should be prioritized for intervention<br>
-                    • This results is show based on SHAP analysis from default model
+                    • These results are based on SHAP analysis from the trained model
                 </div>
                 """, unsafe_allow_html=True)
             else:
                 st.info("SHAP data not found. Please ensure 'shap_global_importance.csv' is in the models folder.")
         
-    with tab2:
-        st.subheader("Your Prediction Explanation")
-        st.markdown("""
-        <div class="info-box">
-            <strong>What this shows:</strong> Which of your responses most affected the stress prediction.
-            Select a previous self-test below to see the key factors that influenced your result.
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Check if there are previous self-tests
-        if st.session_state.test_history:
-            # Let user select previous test
-            test_options = []
-            for i, test in enumerate(st.session_state.test_history):
-                time_str = test['timestamp'].strftime("%d/%m/%Y %H:%M")
-                test_options.append(f"{time_str} - {test['stress_level']} Stress")
-            
-            selected_test_idx = st.selectbox(
-                "Select a previous self-test:",
-                range(len(test_options)),
-                format_func=lambda x: test_options[x]
-            )
-            
-            if st.button("Explain This Prediction", type="primary", use_container_width=True):
-                selected_test = st.session_state.test_history[selected_test_idx]
-                responses = selected_test['responses']
-                stress_level = selected_test['stress_level']
-                
-                # Display prediction result
-                if stress_level == "Low":
-                    st.success(f"### Predicted: {stress_level} Stress")
-                elif stress_level == "Moderate":
-                    st.warning(f"### Predicted: {stress_level} Stress")
-                else:
-                    st.error(f"### Predicted: {stress_level} Stress")
-                
-                # Collect all responses for display
-                impact_data = []
-                for feature, value in responses.items():
-                    # Skip gender and age
-                    if 'gender' in feature.lower() or 'age' in feature.lower():
-                        continue
-                        
-                    clean = feature.split('.')[0] if '.' in feature else feature
-                    
-                    if isinstance(value, (int, float)):
-                        # Determine effect based on score
-                        if value >= 7:
-                            effect = "Increases Stress"
-                            color = "#dc3545"
-                        elif value <= 3:
-                            effect = "Decreases Stress"
-                            color = "#28a745"
-                        else:
-                            effect = "Neutral"
-                            color = "#6c757d"
-                        
-                        impact_data.append({
-                            "Factor": clean,
-                            "Your Score": value,
-                            "Effect": effect,
-                            "Color": color
-                        })
-                
-                if impact_data:
-                    # Sort by score - highest score first (most impact)
-                    impact_df = pd.DataFrame(impact_data)
-                    impact_df = impact_df.sort_values('Your Score', ascending=False)
-                    
-                    # Show top 10 factors with highest scores
-                    top_impact_df = impact_df.head(10)
-                    
-                    # For horizontal bar chart, sort ascending so highest score at top
-                    chart_df = top_impact_df.sort_values('Your Score', ascending=True)
-                    
-                    # Horizontal bar chart with x-axis 0-10
-                    fig = px.bar(chart_df, x='Your Score', y='Factor', 
-                                orientation='h',
-                                color='Effect',
-                                color_discrete_map={
-                                    'Increases Stress': '#dc3545',
-                                    'Decreases Stress': '#28a745',
-                                    'Neutral': '#6c757d'
-                                },
-                                title="Your Responses based on self-test results",
-                                text='Your Score')
-                    
-                    fig.update_traces(textposition='outside', textfont_size=11)
-                    fig.update_layout(
-                        height=450,
-                        xaxis_title="Your Score (0 = Low Stress, 10 = High Stress)",
-                        yaxis_title="",
-                        showlegend=True,
-                        legend_title="Effect",
-                        xaxis=dict(range=[0, 10], tick0=0, dtick=1)
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Summary insight
-                    high_scores = impact_df[impact_df['Your Score'] >= 7]
-                    low_scores = impact_df[impact_df['Your Score'] <= 3]
-                    
-                    if len(high_scores) > 0:
-                        st.warning(f"{len(high_scores)} factors with high scores (≥7) increase your stress level.")
-                    if len(low_scores) > 0:
-                        st.success(f"{len(low_scores)} factors with low scores (≤3) decrease your stress level.")
-                    
-                    st.markdown("""
-                    <div class="info-box">
-                        <strong>How to read:</strong><br>
-                        • Red = High scores (7-10) that increase stress<br>
-                        • Green = Low scores (0-3) that decrease stress<br>
-                        • Gray = Moderate scores (4-6) with neutral effect<br>
-                        • Longer bars = Higher scores that contribute more to stress
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.info("Unable to analyze responses.")
-        else:
-            st.info("No self-test history found. Please complete a Student Self-Test first.")
-
-        with tab3:
+        with tab2:  # Feature Impact Analysis
             st.subheader("Feature Impact Analysis")
             st.markdown("""
             <div class="info-box">
