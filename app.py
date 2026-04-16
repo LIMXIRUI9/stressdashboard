@@ -365,7 +365,7 @@ if page == "🏠 Dashboard Overview":
         col1, col2 = st.columns(2)
         
         with col1:
-            # Age Distribution - Bar Chart
+            # Age Distribution - Bar Chart (University students 18-30)
             ages = []
             if 'test_history' in st.session_state:
                 for test in st.session_state.test_history:
@@ -378,14 +378,15 @@ if page == "🏠 Dashboard Overview":
             
             if ages:
                 age_df = pd.DataFrame({'Age': ages})
-                bins = [16, 20, 25, 30, 35, 40, 100]
-                labels = ['16-20', '21-25', '26-30', '31-35', '36-40', '40+']
+                # Specific bins for university age range 18-30
+                bins = [18, 21, 24, 27, 30, 31]
+                labels = ['18-20', '21-23', '24-26', '27-29', '30']
                 age_df['Age Group'] = pd.cut(age_df['Age'], bins=bins, labels=labels, right=False)
                 age_group_counts = age_df['Age Group'].value_counts().reset_index()
                 age_group_counts.columns = ['Age Group', 'Count']
                 age_group_counts = age_group_counts.sort_values('Age Group')
                 fig_age = px.bar(age_group_counts, x='Age Group', y='Count',
-                                title=f"Age Distribution (total={len(ages)})",
+                                title=f"University Student Age Distribution (total={len(ages)})",
                                 color='Count', color_continuous_scale='Blues',
                                 text='Count')
                 fig_age.update_traces(textposition='outside', textfont_size=14)
@@ -762,8 +763,8 @@ elif page == "📝 Student Self-Test":
                 elif 'age' in display_feature.lower():
                     value = st.number_input(
                         display_feature,
-                        min_value=16,
-                        max_value=100,
+                        min_value=18,
+                        max_value=30,
                         value=22,
                         step=1,
                         key=f"age_{idx}"
@@ -773,15 +774,13 @@ elif page == "📝 Student Self-Test":
                     for original_feature in st.session_state.feature_mapping[display_feature]:
                         user_input[original_feature] = value
                     
-                    if value < 18:
-                        st.caption(f"Age: {value} - Young adult")
-                    elif value <= 25:
-                        st.caption(f"Age: {value} - University age")
-                    elif value <= 35:
-                        st.caption(f"Age: {value} - Young professional")
+                    if value <= 22:
+                        st.caption(f"Age: {value} - Early university years")
+                    elif value <= 26:
+                        st.caption(f"Age: {value} - Mid university years")
                     else:
-                        st.caption(f"Age: {value} - Adult")
-                
+                        st.caption(f"Age: {value} - Late university years")
+                                
                 # Regular questions
                 else:
                     value = st.slider(
@@ -1220,14 +1219,14 @@ elif page == "📝 Student Self-Test":
                             # Handle age specially
                             elif 'age' in display_feature.lower():
                                 display_value = str(val)
-                                if val < 18:
-                                    interpretation = "(Young adult)"
-                                elif val <= 25:
-                                    interpretation = "(University age)"
-                                elif val <= 35:
-                                    interpretation = "(Young professional)"
+                                if val <= 20:
+                                    interpretation = "(Early university)"
+                                elif val <= 23:
+                                    interpretation = "(Mid university)"
+                                elif val <= 26:
+                                    interpretation = "(Upper university)"
                                 else:
-                                    interpretation = "(Adult)"
+                                    interpretation = "(Late university)"
                                 numeric_val = None
                             # Regular questions with score interpretation
                             elif isinstance(val, (int, float)):
@@ -1599,7 +1598,7 @@ elif page == "🔍 SHAP Explanations":
     if st.session_state.model is None:
         st.warning("No model loaded. Please refresh the page to load the model files first.")
     else:
-        # Tab layout for different SHAP views - removed "Your Prediction" tab
+        # Tab layout 
         tab1, tab2 = st.tabs(["Global Importance", "Feature Impact"])
         
         with tab1:  # Global feature importance
@@ -1611,13 +1610,12 @@ elif page == "🔍 SHAP Explanations":
             """, unsafe_allow_html=True)
             
             if st.session_state.importance_df is not None:
-                # Use actual SHAP data from models folder
+                # SHAP data from models folder
                 importance_df = st.session_state.importance_df.head(15)
                 
                 display_names = []
                 for f in importance_df['Feature']:
                     clean = f.split('.')[0] if '.' in f else f
-                    # Keep the full sentence, no truncation
                     display_names.append(clean)
 
                 importance_df['Display Name'] = display_names
@@ -1647,7 +1645,7 @@ elif page == "🔍 SHAP Explanations":
                 )
                 st.plotly_chart(fig_importance, use_container_width=True)
                 
-                # Guide at bottom
+                # Info box 
                 st.markdown("""
                 <div class="info-box">
                     <strong>How to read:</strong><br>
@@ -1672,7 +1670,6 @@ elif page == "🔍 SHAP Explanations":
                 col1, col2 = st.columns([1, 2])
                 
                 with col1:
-                    # Feature selector with cleaned names
                     available = []
                     for f in st.session_state.importance_df['Feature'].tolist()[:10]:
                         clean = f.split('.')[0] if '.' in f else f
