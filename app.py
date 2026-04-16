@@ -548,7 +548,7 @@ if page == "🏠 Dashboard Overview":
                     fig_category = px.bar(category_df, x='Category', y='Average Stress Score',
                                         title="Average Stress Score by Category",
                                         color='Average Stress Score',
-                                        color_continuous_scale='RdYlGn_r',
+                                        color_continuous_scale='OrRd',
                                         text='Average Stress Score')
                     fig_category.update_traces(texttemplate='%{text:.1f}', textposition='outside', textfont_size=12)
                     fig_category.update_layout(
@@ -560,47 +560,61 @@ if page == "🏠 Dashboard Overview":
                     )
                     st.plotly_chart(fig_category, use_container_width=True)
                 else:
-                    st.info("Complete self-tests to see category breakdown")
+                    st.info("Complete self-tests to see the chart")
             else:
-                st.info("Complete self-tests to see category breakdown")
+                st.info("Complete self-tests to see the chart")
+
         st.markdown("---")
         
-        # ============ SECTION 4: STACKED AREA CHART ============
-        st.subheader("Stress Level Composition Over Time")
-        st.caption("How stress level distribution changes over time")
+        # ============ SECTION 4: TOP STRESS FACTORS ============
+        st.subheader("Top Student-Reported Stress Factors")
 
-        # Define timeline_data first
-        timeline_data = []
-
-        if 'test_history' in st.session_state:
+        if st.session_state.test_history:
+            # Collect all responses
+            all_scores = {}
             for test in st.session_state.test_history:
-                timeline_data.append({
-                    'Date': test['timestamp'],
-                    'Stress Level': test['stress_level']
-                })
-
-        if 'prediction_history' in st.session_state:
-            for batch in st.session_state.prediction_history:
-                for pred in batch['predictions']:
-                    timeline_data.append({
-                        'Date': batch['timestamp'],
-                        'Stress Level': pred
-                    })
-
-        # Now check if timeline_data has content
-        if timeline_data:
-            timeline_df = pd.DataFrame(timeline_data)
-            timeline_df['Date'] = pd.to_datetime(timeline_df['Date']).dt.date
-            daily_counts = timeline_df.groupby(['Date', 'Stress Level']).size().reset_index(name='Count')
+                for feature, value in test['responses'].items():
+                    if 'gender' not in feature.lower() and 'age' not in feature.lower():
+                        clean = feature.split('.')[0] if '.' in feature else feature
+                        if clean not in all_scores:
+                            all_scores[clean] = []
+                        if isinstance(value, (int, float)):
+                            all_scores[clean].append(value)
             
-            fig_area = px.area(daily_counts, x='Date', y='Count', color='Stress Level',
-                            title="Stress Level Composition Over Time",
-                            color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'},
-                            groupnorm=None)
-            fig_area.update_layout(height=450, yaxis_title="Number of Predictions")
-            st.plotly_chart(fig_area, use_container_width=True)
+            # Calculate averages
+            avg_scores = []
+            for factor, scores in all_scores.items():
+                if scores:
+                    avg_scores.append({
+                        'Factor': factor,  
+                        'Average Score': np.mean(scores),
+                        'Count': len(scores)
+                    })
+            
+            if avg_scores:
+                avg_df = pd.DataFrame(avg_scores)
+                avg_df = avg_df.sort_values('Average Score', ascending=True).head(10)
+                
+                # Increase height to accommodate full questions
+                fig_top = px.bar(avg_df, x='Average Score', y='Factor',
+                                orientation='h',
+                                title="Top 10 Highest Rated Stress Factors",
+                                color='Average Score',
+                                color_continuous_scale='OrRd',
+                                text='Average Score',
+                                height=450)  
+                fig_top.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+                fig_top.update_layout(
+                    xaxis_title="Average Score (0-10)", 
+                    xaxis=dict(range=[0, 10]),
+                    yaxis_title="",
+                    margin=dict(l=10, r=10, t=40, b=10)
+                )
+                st.plotly_chart(fig_top, use_container_width=True)
+
         else:
-            st.info("No prediction history yet. Complete a Self-Test or upload a Batch CSV!")
+            st.info("Complete self-tests to see top stress factors")
+        st.markdown("---")
                 
         # ============ SECTION 5: RECENT ACTIVITY ============
         st.subheader("Recent Activity")
@@ -1632,7 +1646,7 @@ elif page == "🔍 SHAP Explanations":
                                     orientation='h', 
                                     title="Top 15 Features Impacting Stress",
                                     color='Importance', 
-                                    color_continuous_scale='Reds',
+                                    color_continuous_scale='OrRd',
                                     text='Importance',
                                     height=550)
                 fig_importance.update_traces(texttemplate='%{text:.4f}', textposition='outside', textfont_size=10)
