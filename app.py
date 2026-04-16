@@ -563,84 +563,45 @@ if page == "🏠 Dashboard Overview":
             else:
                 st.info("Complete self-tests to see category breakdown")
         st.markdown("---")
+        
+        # ============ SECTION 4: STACKED AREA CHART ============
+        st.subheader("Stress Level Composition Over Time")
+        st.caption("How stress level distribution changes over time")
 
-        # ============ SECTION 4: FEATURE IMPORTANCE ============
-        st.subheader("Feature Importance Analysis")
-        st.caption("Top factors affecting stress prediction (SHAP-based)")
-        
-        if st.session_state.importance_df is not None:
-            importance_df = st.session_state.importance_df.head(10)
-            fig_importance = px.bar(importance_df, x='Importance', y='Feature', 
-                                   orientation='h', 
-                                   title="Top 10 Features Impacting Stress",
-                                   color='Importance', 
-                                   color_continuous_scale='Reds',
-                                   text='Importance')
-            fig_importance.update_traces(texttemplate='%{text:.3f}', textposition='outside', textfont_size=12)
-            fig_importance.update_layout(
-                height=500,
-                xaxis_title="SHAP Importance Score",
-                yaxis_title="Feature Name",
-                yaxis={'categoryorder': 'total ascending'}
-            )
-            st.plotly_chart(fig_importance, use_container_width=True)
-        else:
-            st.info("SHAP importance data not available. Please ensure 'shap_global_importance.csv' is present in the models folder.")
-        
-        st.markdown("---")
-        
-        # ============ SECTION 5: TRENDS OVER TIME ============
-        st.subheader("Stress Trends Over Time")
-        st.caption("Track how stress levels change over time")
-        
+        # Define timeline_data first
         timeline_data = []
-        
+
         if 'test_history' in st.session_state:
             for test in st.session_state.test_history:
                 timeline_data.append({
                     'Date': test['timestamp'],
-                    'Stress Level': test['stress_level'],
-                    'Type': 'Self-Test'
+                    'Stress Level': test['stress_level']
                 })
-        
+
         if 'prediction_history' in st.session_state:
             for batch in st.session_state.prediction_history:
-                for i, pred in enumerate(batch['predictions']):
+                for pred in batch['predictions']:
                     timeline_data.append({
-                        'Date': batch['timestamp'] + pd.Timedelta(seconds=i),
-                        'Stress Level': pred,
-                        'Type': 'Batch'
+                        'Date': batch['timestamp'],
+                        'Stress Level': pred
                     })
-        
+
+        # Now check if timeline_data has content
         if timeline_data:
             timeline_df = pd.DataFrame(timeline_data)
-            timeline_df = timeline_df.sort_values('Date')
-            stress_order = {'Low': 0, 'Moderate': 1, 'High': 2}
-            timeline_df['Stress_Numeric'] = timeline_df['Stress Level'].map(stress_order)
+            timeline_df['Date'] = pd.to_datetime(timeline_df['Date']).dt.date
+            daily_counts = timeline_df.groupby(['Date', 'Stress Level']).size().reset_index(name='Count')
             
-            fig_timeline = px.line(timeline_df, x='Date', y='Stress_Numeric', 
-                                   color='Type', 
-                                   title="Stress Level Trends Over Time",
-                                   markers=True,
-                                   color_discrete_map={'Self-Test': '#2E86AB', 'Batch': '#F39C12'})
-            fig_timeline.update_layout(
-                yaxis_title="Stress Level",
-                xaxis_title="Date",
-                yaxis=dict(
-                    tickmode='array',
-                    tickvals=[0, 1, 2],
-                    ticktext=['Low', 'Moderate', 'High']
-                ),
-                height=450,
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig_timeline, use_container_width=True)
+            fig_area = px.area(daily_counts, x='Date', y='Count', color='Stress Level',
+                            title="Stress Level Composition Over Time",
+                            color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'},
+                            groupnorm=None)
+            fig_area.update_layout(height=450, yaxis_title="Number of Predictions")
+            st.plotly_chart(fig_area, use_container_width=True)
         else:
-            st.info("No prediction history yet. Complete a Self-Test to see your timeline!")
-        
-        st.markdown("---")
-        
-        # ============ SECTION 6: RECENT ACTIVITY ============
+            st.info("No prediction history yet. Complete a Self-Test or upload a Batch CSV!")
+                
+        # ============ SECTION 5: RECENT ACTIVITY ============
         st.subheader("Recent Activity")
         
         col1, col2 = st.columns(2)
@@ -846,13 +807,6 @@ elif page == "📝 Student Self-Test":
                         st.caption(f"Score: {value} - High / Frequently")
                     else:
                         st.caption(f"Score: {value} - Severe / Always")
-        
-        st.markdown("---")
-        
-        col_reset1, col_reset2, col_reset3 = st.columns([1, 2, 1])
-        with col_reset2:
-            if st.button("Reset All Values", use_container_width=True):
-                st.rerun()
         
         st.markdown("---")
         
