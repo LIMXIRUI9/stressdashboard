@@ -548,7 +548,7 @@ if page == "🏠 Dashboard Overview":
                     fig_category = px.bar(category_df, x='Category', y='Average Stress Score',
                                         title="Average Stress Score by Category",
                                         color='Average Stress Score',
-                                        color_continuous_scale='OrRd',
+                                        color_continuous_scale='Reds',
                                         text='Average Stress Score')
                     fig_category.update_traces(texttemplate='%{text:.1f}', textposition='outside', textfont_size=12)
                     fig_category.update_layout(
@@ -600,7 +600,7 @@ if page == "🏠 Dashboard Overview":
                                 orientation='h',
                                 title="Top 10 Highest Rated Stress Factors",
                                 color='Average Score',
-                                color_continuous_scale='OrRd',
+                                color_continuous_scale='Reds',
                                 text='Average Score',
                                 height=450)  
                 fig_top.update_traces(texttemplate='%{text:.1f}', textposition='outside')
@@ -957,7 +957,7 @@ elif page == "📝 Student Self-Test":
                                     color = "#28a745"
                                 else:
                                     effect = "Neutral"
-                                    color = "#6c757d"
+                                    color = "#8a8a8a"
                                     weighted_impact = 0.05
                                 
                                 impact_data.append({
@@ -1613,7 +1613,7 @@ elif page == "🔍 SHAP Explanations":
         st.warning("No model loaded. Please refresh the page to load the model files first.")
     else:
         # Tab layout 
-        tab1, tab2 = st.tabs(["Global Importance", "Model Comparison"])
+        tab1, tab2 = st.tabs(["Global Importance", "Comparison Analysis"])
         
         with tab1:  # Global feature importance
             st.subheader("Global Feature Importance")
@@ -1646,7 +1646,7 @@ elif page == "🔍 SHAP Explanations":
                                     orientation='h', 
                                     title="Top 15 Features Impacting Stress",
                                     color='Importance', 
-                                    color_continuous_scale='OrRd',
+                                    color_continuous_scale='Reds',
                                     text='Importance',
                                     height=550)
                 fig_importance.update_traces(texttemplate='%{text:.4f}', textposition='outside', textfont_size=10)
@@ -1681,7 +1681,7 @@ elif page == "🔍 SHAP Explanations":
             """, unsafe_allow_html=True)
             
             if st.session_state.importance_df is not None and (st.session_state.test_history or st.session_state.prediction_history):
-                # Get ALL model importance (exclude gender and age)
+                # all model importance (exclude gender and age)
                 model_imp = {}
                 for _, row in st.session_state.importance_df.iterrows():
                     clean = row['Feature'].split('.')[0] if '.' in row['Feature'] else row['Feature']
@@ -1690,7 +1690,7 @@ elif page == "🔍 SHAP Explanations":
                         continue
                     model_imp[clean] = row['Importance']
                 
-                # Get user average scores from self-tests (exclude gender and age)
+                # Get user average scores from self-tests 
                 user_scores = {}
                 
                 # Collect from self-tests
@@ -1723,7 +1723,7 @@ elif page == "🔍 SHAP Explanations":
                 
                 user_avg = {k: np.mean(v) for k, v in user_scores.items() if v}
                 
-                # Combine ALL features (exclude gender and age)
+                # Combine ALL features 
                 comparison = []
                 all_features = set(model_imp.keys()) | set(user_avg.keys())
                 
@@ -1731,7 +1731,7 @@ elif page == "🔍 SHAP Explanations":
                     model_score = model_imp.get(feat, 0)
                     user_score = user_avg.get(feat, 0)
                     comparison.append({
-                        'Feature': feat,  # Full feature name, no truncation
+                        'Feature': feat,  
                         'Model Importance': model_score,
                         'Student Score': user_score,
                     })
@@ -1747,10 +1747,10 @@ elif page == "🔍 SHAP Explanations":
                     
                     comp_df['Student Score (Normalized)'] = comp_df['Student Score'] / 10
                     
-                    # Sort by Model Importance for better visualization
-                    comp_df = comp_df.sort_values('Model Importance', ascending=False)
+                    # Sort by Student Score (highest to lowest) - use descending for proper display
+                    comp_df = comp_df.sort_values('Student Score', ascending=False)  
                     
-                    # Create a vertical grouped bar chart
+                    # Create a horizontal grouped bar chart 
                     plot_df = comp_df.melt(id_vars=['Feature'], 
                                         value_vars=['Model Importance (Normalized)', 'Student Score (Normalized)'],
                                         var_name='Source', value_name='Score')
@@ -1761,39 +1761,40 @@ elif page == "🔍 SHAP Explanations":
                         'Student Score (Normalized)': 'Student Reports'
                     })
                     
-                    # Dynamic height based on number of features (each feature needs ~30px)
-                    chart_height = max(500, len(comp_df) * 30)
+                    # Dynamic height based on number of features
+                    chart_height = max(500, len(comp_df) * 40)
                     
-                    fig_comp = px.bar(plot_df, x='Feature', y='Score', color='Source',
-                                    title=f"Model Importance vs Student-Reported Scores",
+                    fig_comp = px.bar(plot_df, x='Score', y='Feature', color='Source',
+                                    title="Model Importance vs Student-Reported Scores",
+                                    orientation='h',
                                     barmode='group',
                                     color_discrete_map={
-                                        'Model Importance': "#2E75AB",
-                                        'Student Reports': '#F39C12'
+                                        'Model Importance': '#BDC3C7',
+                                        'Student Reports': '#2980B9'
                                     },
                                     text='Score',
-                                    height=chart_height)
+                                    height=chart_height,
+                                    category_orders={'Feature': comp_df['Feature'].tolist()})  # Force order
                     fig_comp.update_traces(texttemplate='%{text:.2f}', textposition='outside')
                     fig_comp.update_layout(
-                        xaxis_title="Factors",
-                        yaxis_title="Normalized Score (0-1)",
-                        xaxis={'tickangle': -45, 'tickfont': {'size': 10}},
+                        xaxis_title="Normalized Score (0-1)",
+                        yaxis_title="",
+                        yaxis={'tickfont': {'size': 12}},
                         legend_title="Source",
-                        margin=dict(b=150)  # Extra margin for rotated labels
+                        margin=dict(l=10, r=10, t=40, b=10)
                     )
                     st.plotly_chart(fig_comp, use_container_width=True)
                     
-                    st.markdown("""
-                    <div class="info-box">
-                        <strong>How to read:</strong><br>
-                        • <span style="color:#2E86AB">Blue bars</span> = What the model learned is important<br>
-                        • <span style="color:#F39C12">Orange bars</span> = What students actually report<br>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Show top 5 student-reported concerns
+                    top_concerns = comp_df.nlargest(5, 'Student Score')['Feature'].tolist()
+                    st.info("**Top 5 Student-Reported Concerns:**\n" + 
+                        "\n".join([f"- {concern}" for concern in top_concerns]))
+                    
                 else:
                     st.info("Complete more self-tests or batch predictions to enable comparison")
             else:
                 st.info("Complete self-tests or batch predictions to see model vs student perception")
+
 # ==================================== PAGE 5: BATCH PREDICTION =========================================================
 elif page == "📂 Batch Prediction":
     st.header("Batch Prediction")
