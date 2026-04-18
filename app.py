@@ -1210,7 +1210,7 @@ elif page == "📝 Student Self-Test":
                     else:
                         pdf.confidence_bar(level, percentage, 220, 53, 69)
 
-                # Add interpretation guide
+                # Add guide
                 pdf.add_explanation("Interpretation: Low confidence (<50%) suggests uncertainty, while high confidence (>70%) indicates strong prediction certainty.")
                 pdf.ln(5)
 
@@ -1218,7 +1218,7 @@ elif page == "📝 Student Self-Test":
                 pdf.section_title("RESPONSES SUMMARY")
                 pdf.add_explanation("Your responses to each question are summarized below. Scores range from 0 (Never/Low) to 10 (Always/High).")
 
-                # Get all responses with proper display values
+                # all responses 
                 response_items = []
                 gender_display = {0: 'Male', 1: 'Female', 2: 'Prefer not to say'}
 
@@ -1230,7 +1230,7 @@ elif page == "📝 Student Self-Test":
                                 display_value = gender_display.get(val, str(val))
                                 interpretation = ""
                                 numeric_val = None
-                            # Handle age specially
+                            # Handle age 
                             elif 'age' in display_feature.lower():
                                 display_value = str(val)
                                 if val <= 20:
@@ -1264,10 +1264,10 @@ elif page == "📝 Student Self-Test":
                             response_items.append((display_feature, display_value, interpretation, numeric_val))
                             break
 
-                # FIXED RESPONSES TABLE - All on same line
+                # FIXED RESPONSES TABLE 
                 pdf.set_font('Arial', '', 10)
 
-                # Calculate page width for full width table
+                # page width for full width table
                 page_width = pdf.w - pdf.l_margin - pdf.r_margin
 
                 # Column widths
@@ -1285,7 +1285,7 @@ elif page == "📝 Student Self-Test":
                     pdf.set_text_color(46, 134, 171)
                     pdf.cell(width_number, 8, f"{idx + 1}.", 0, 0, 'L')
                     
-                    # FULL FEATURE NAME (no truncation)
+                    # FULL FEATURE NAME 
                     pdf.set_font('Arial', '', 9)
                     pdf.set_text_color(0, 0, 0)
                     pdf.cell(width_feature, 8, feature, 0, 0, 'L')
@@ -1324,7 +1324,7 @@ elif page == "📝 Student Self-Test":
                         pdf.line(10, pdf.get_y() + 2, page_width + 10, pdf.get_y() + 2)
                         pdf.ln(4)  # Space after separator line
 
-                # ============ SHAP ANALYSIS SECTION (NO BORDERS) ============
+                # ============ SHAP ANALYSIS SECTION ============
                 pdf.ln(8)
                 pdf.section_title("SHAP ANALYSIS - KEY STRESS FACTORS")
 
@@ -1368,7 +1368,7 @@ elif page == "📝 Student Self-Test":
                         })
 
                 if impact_data:
-                    # Sort by score (highest first)
+                    # Sort by score (highest to lowest)
                     impact_df = pd.DataFrame(impact_data)
                     impact_df = impact_df.sort_values('Score', ascending=False)
                     
@@ -1380,14 +1380,14 @@ elif page == "📝 Student Self-Test":
                     pdf.cell(0, 8, "The following top 10 factors had the highest scores in your assessment:", 0, 1, 'L')
                     pdf.ln(3)
                     
-                    # STANDARDIZED SHAP TABLE - NO BORDERS
+                    # STANDARDIZED SHAP TABLE 
                     page_width = pdf.w - pdf.l_margin - pdf.r_margin
                     
                     width_factor = page_width * 0.58    # 58% for Factor (full names)
                     width_score = page_width * 0.12     # 12% for Score
                     width_category = page_width * 0.30  # 30% for Category
                     
-                    # Header row (no borders)
+                    # Header row 
                     pdf.set_font('Arial', 'B', 10)
                     pdf.set_text_color(0, 0, 0)
                     pdf.cell(width_factor, 8, "Factor", 0, 0, 'L')
@@ -1399,11 +1399,11 @@ elif page == "📝 Student Self-Test":
                     pdf.line(10, pdf.get_y(), page_width + 10, pdf.get_y())
                     pdf.ln(5)
                     
-                    # Data rows (no borders)
+                    # Data rows
                     pdf.set_font('Arial', '', 10)
                     
                     for idx, row in top_impact_df.iterrows():
-                        # FULL FEATURE NAME (no truncation)
+                        # full feature name
                         factor_text = row['Factor']
                         
                         # Factor column
@@ -1613,7 +1613,7 @@ elif page == "🔍 SHAP Explanations":
         st.warning("No model loaded. Please refresh the page to load the model files first.")
     else:
         # Tab layout 
-        tab1, tab2 = st.tabs(["Global Importance", "Feature Impact"])
+        tab1, tab2 = st.tabs(["Global Importance", "Model Comparison"])
         
         with tab1:  # Global feature importance
             st.subheader("Global Feature Importance")
@@ -1671,82 +1671,129 @@ elif page == "🔍 SHAP Explanations":
             else:
                 st.info("SHAP data not found. Please ensure 'shap_global_importance.csv' is in the models folder.")
         
-        with tab2:  # Feature Impact Analysis
-            st.subheader("Feature Impact Analysis")
+        with tab2:
+            st.subheader("Model Importance vs Student Reports")
             st.markdown("""
             <div class="info-box">
-                <strong>What this shows:</strong> How different scores affect stress prediction for each question.
-                Select a feature below to see its impact pattern.
+                <strong>What this shows:</strong> Comparison between what the model considers important and what students actually report.
+                This includes both self-test and batch prediction data to help identify alignment and gaps.
             </div>
             """, unsafe_allow_html=True)
             
-            if st.session_state.importance_df is not None:
-                col1, col2 = st.columns([1, 2])
+            if st.session_state.importance_df is not None and (st.session_state.test_history or st.session_state.prediction_history):
+                # Get ALL model importance (exclude gender and age)
+                model_imp = {}
+                for _, row in st.session_state.importance_df.iterrows():
+                    clean = row['Feature'].split('.')[0] if '.' in row['Feature'] else row['Feature']
+                    # Skip gender and age
+                    if 'gender' in clean.lower() or 'age' in clean.lower():
+                        continue
+                    model_imp[clean] = row['Importance']
                 
-                with col1:
-                    available = []
-                    for f in st.session_state.importance_df['Feature'].tolist()[:10]:
-                        clean = f.split('.')[0] if '.' in f else f
-                        if len(clean) > 35:
-                            clean = clean[:32] + "..."
-                        available.append(clean)
-                    
-                    selected = st.selectbox("Select a factor:", available)
-                    
-                    st.markdown("---")
-                    st.markdown("**Impact Pattern**")
-                    
-                    # Determine pattern based on keyword
-                    if 'sleep' in selected.lower():
-                        st.info("Low scores (0-3): Increases stress\nGood scores (7-9): Reduces stress")
-                    elif 'anxiety' in selected.lower() or 'tension' in selected.lower():
-                        st.info("Higher scores = Higher stress")
-                    elif 'academic' in selected.lower() or 'workload' in selected.lower():
-                        st.info("Scores above 6 show increasing stress impact")
-                    elif 'activity' in selected.lower() or 'exercise' in selected.lower():
-                        st.info("Higher scores (7-10) reduce stress")
-                    else:
-                        st.info("Scores above 7 typically increase stress")
+                # Get user average scores from self-tests (exclude gender and age)
+                user_scores = {}
                 
-                with col2:
-                    # Impact chart
-                    x_vals = list(range(0, 11))
+                # Collect from self-tests
+                for test in st.session_state.test_history:
+                    for feature, value in test['responses'].items():
+                        # Skip gender and age
+                        if 'gender' in feature.lower() or 'age' in feature.lower():
+                            continue
+                        clean = feature.split('.')[0] if '.' in feature else feature
+                        if clean not in user_scores:
+                            user_scores[clean] = []
+                        if isinstance(value, (int, float)):
+                            user_scores[clean].append(value)
+                
+                # Collect from batch predictions (if available)
+                for batch in st.session_state.prediction_history:
+                    if 'data' in batch and batch['data'] is not None:
+                        df = batch['data']
+                        for col in df.columns:
+                            # Skip gender and age
+                            if 'gender' in col.lower() or 'age' in col.lower():
+                                continue
+                            clean = col.split('.')[0] if '.' in col else col
+                            values = df[col].dropna().tolist()
+                            numeric_values = [v for v in values if isinstance(v, (int, float))]
+                            if numeric_values:
+                                if clean not in user_scores:
+                                    user_scores[clean] = []
+                                user_scores[clean].extend(numeric_values)
+                
+                user_avg = {k: np.mean(v) for k, v in user_scores.items() if v}
+                
+                # Combine ALL features (exclude gender and age)
+                comparison = []
+                all_features = set(model_imp.keys()) | set(user_avg.keys())
+                
+                for feat in all_features:
+                    model_score = model_imp.get(feat, 0)
+                    user_score = user_avg.get(feat, 0)
+                    comparison.append({
+                        'Feature': feat,  # Full feature name, no truncation
+                        'Model Importance': model_score,
+                        'Student Score': user_score,
+                    })
+                
+                if comparison:
+                    comp_df = pd.DataFrame(comparison)
                     
-                    if 'sleep' in selected.lower():
-                        y_vals = [0.8, 0.6, 0.4, 0.2, 0.1, 0, 0.1, 0.3, 0.5, 0.7, 0.9]
-                        note = "Low sleep = Higher stress | Good sleep = Lower stress"
-                    elif 'anxiety' in selected.lower() or 'tension' in selected.lower():
-                        y_vals = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]
-                        note = "Higher anxiety = Higher stress"
-                    elif 'academic' in selected.lower() or 'workload' in selected.lower():
-                        y_vals = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
-                        note = "Academic pressure increases stress"
-                    elif 'activity' in selected.lower():
-                        y_vals = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1]
-                        note = "More activity = Lower stress"
+                    # Normalize scores for better comparison
+                    if comp_df['Model Importance'].max() > 0:
+                        comp_df['Model Importance (Normalized)'] = comp_df['Model Importance'] / comp_df['Model Importance'].max()
                     else:
-                        y_vals = [0.3, 0.3, 0.4, 0.4, 0.5, 0.5, 0.6, 0.6, 0.7, 0.7, 0.8]
-                        note = "Higher scores increase stress"
+                        comp_df['Model Importance (Normalized)'] = 0
                     
-                    impact_df = pd.DataFrame({'Score': x_vals, 'Impact': y_vals})
+                    comp_df['Student Score (Normalized)'] = comp_df['Student Score'] / 10
                     
-                    fig = px.line(impact_df, x='Score', y='Impact',
-                                 title=f"Impact of '{selected}' on Stress",
-                                 markers=True,
-                                 color_discrete_sequence=['#2E86AB'])
-                    fig.update_traces(marker=dict(size=8), line=dict(width=2))
-                    fig.update_layout(
-                        xaxis_title="Your Score (0-10)",
-                        yaxis_title="Influence Level",
-                        height=350,
-                        xaxis=dict(tick0=0, dtick=1)
+                    # Sort by Model Importance for better visualization
+                    comp_df = comp_df.sort_values('Model Importance', ascending=False)
+                    
+                    # Create a vertical grouped bar chart
+                    plot_df = comp_df.melt(id_vars=['Feature'], 
+                                        value_vars=['Model Importance (Normalized)', 'Student Score (Normalized)'],
+                                        var_name='Source', value_name='Score')
+                    
+                    # Replace source names for cleaner legend
+                    plot_df['Source'] = plot_df['Source'].replace({
+                        'Model Importance (Normalized)': 'Model Importance',
+                        'Student Score (Normalized)': 'Student Reports'
+                    })
+                    
+                    # Dynamic height based on number of features (each feature needs ~30px)
+                    chart_height = max(500, len(comp_df) * 30)
+                    
+                    fig_comp = px.bar(plot_df, x='Feature', y='Score', color='Source',
+                                    title=f"Model Importance vs Student-Reported Scores",
+                                    barmode='group',
+                                    color_discrete_map={
+                                        'Model Importance': "#2E75AB",
+                                        'Student Reports': '#F39C12'
+                                    },
+                                    text='Score',
+                                    height=chart_height)
+                    fig_comp.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                    fig_comp.update_layout(
+                        xaxis_title="Factors",
+                        yaxis_title="Normalized Score (0-1)",
+                        xaxis={'tickangle': -45, 'tickfont': {'size': 10}},
+                        legend_title="Source",
+                        margin=dict(b=150)  # Extra margin for rotated labels
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig_comp, use_container_width=True)
                     
-                    st.caption(f"💡 {note}")
+                    st.markdown("""
+                    <div class="info-box">
+                        <strong>How to read:</strong><br>
+                        • <span style="color:#2E86AB">Blue bars</span> = What the model learned is important<br>
+                        • <span style="color:#F39C12">Orange bars</span> = What students actually report<br>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("Complete more self-tests or batch predictions to enable comparison")
             else:
-                st.info("SHAP data not available. Please upload 'shap_global_importance.csv' to enable this analysis.")
-
+                st.info("Complete self-tests or batch predictions to see model vs student perception")
 # ==================================== PAGE 5: BATCH PREDICTION =========================================================
 elif page == "📂 Batch Prediction":
     st.header("Batch Prediction")
