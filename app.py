@@ -168,7 +168,6 @@ with st.sidebar:
             "📤 Model Files Status",
             "📝 Student Self-Test",
             "🔍 SHAP Explanations",
-            "📂 Batch Prediction"
         ]
     )
     
@@ -178,13 +177,15 @@ with st.sidebar:
     st.markdown("### System Information")
     with st.expander("How to Use"):
         st.markdown("""
-        **Step 1:** Go to 'Student Self-Test' to assess individual stress level
+        **Step 1:** Complete the questionnaire in 'Student Self-Test' to get your stress level prediction.
     
-        **Step 2:** Use 'Batch Prediction' for multiple students via CSV upload
+        **Step 2:** Review the SHAP explanation chart to see which factors affected your prediction.
+                    
+        **Step 3:** Download your personalized assessment report as PDF file. 
     
-        **Step 3:** View 'SHAP Explanations' to understand predictions
-    
-        **Step 4:** Check 'Dashboard Overview' to see statistics and trends
+        **Step 4:** Visit 'SHAP Explanations' for global model insights and model comparison results.
+                    
+        **Step 5:** Back to the 'Dashboard Overview' to see the overview trends of the test results.
         """)
     
     with st.expander("About"):
@@ -313,9 +314,8 @@ if page == "🏠 Dashboard Overview":
         
         **To get started:**
         1. Verify that all required models are successfully loaded. If not, please refresh the page.
-        2. Navigate to 'Student Self-Test' to conduct an individual stress assessment.
-        3. Utilize 'Batch Prediction' for processing multiple student records via CSV file.
-        4. Explore 'SHAP Explanations' to understand the factors influencing predictions.
+        2. Navigate to 'Student Self-Test' to conduct an individual stress assessment and download the results as PDF file.
+        3. Explore 'SHAP Explanations' to understand the factors influencing predictions.
         
         **Note:** Model files are automatically loaded, manual loading files is not allowed.
         """)
@@ -339,18 +339,13 @@ if page == "🏠 Dashboard Overview":
         with col3:
             total_predictions = 0
             self_test_count = 0
-            batch_count = 0
-            
-            if 'prediction_history' in st.session_state:
-                for batch in st.session_state.prediction_history:
-                    batch_count += len(batch['data'])
             
             if 'test_history' in st.session_state:
                 self_test_count = len(st.session_state.test_history)
             
-            total_predictions = self_test_count + batch_count
+            total_predictions = self_test_count 
             st.metric("Total Predictions", total_predictions)
-            st.caption(f"Self-Test: {self_test_count} | Batch: {batch_count}")
+            st.caption(f"Self-Test: {self_test_count} ")
         
         with col4:
             st.metric("ML Model", "AdaBoost")
@@ -444,12 +439,6 @@ if page == "🏠 Dashboard Overview":
         with col1:
             # Stress Level Distribution - Bar Chart
             stress_counts = {'Low': 0, 'Moderate': 0, 'High': 0}
-            
-            if 'prediction_history' in st.session_state:
-                for batch in st.session_state.prediction_history:
-                    for pred in batch['predictions']:
-                        if pred in stress_counts:
-                            stress_counts[pred] += 1
             
             if 'test_history' in st.session_state:
                 for test in st.session_state.test_history:
@@ -635,24 +624,47 @@ if page == "🏠 Dashboard Overview":
                         st.error(f"{time_str} → {test['stress_level']} Stress")
             else:
                 st.info("No self-test history yet.")
-        
         with col2:
-            st.markdown("Recent Batch Predictions")
-            if 'prediction_history' in st.session_state and st.session_state.prediction_history:
-                recent_batches = st.session_state.prediction_history[-3:]
-                for batch in reversed(recent_batches):
-                    time_str = batch['timestamp'].strftime("%d/%m/%Y %H:%M")
-                    counts = pd.Series(batch['predictions']).value_counts()
-                    st.markdown(f"""
-                    **{time_str}**  
-                    - Total: {len(batch['data'])} students  
-                    - Low: {counts.get('Low', 0)}  
-                    - Moderate: {counts.get('Moderate', 0)}  
-                    - High: {counts.get('High', 0)}
-                    """)
-                    st.markdown("---")
+            st.markdown("Quick Stats")
+            if 'test_history' in st.session_state and st.session_state.test_history:
+                total_tests = len(st.session_state.test_history)
+                
+                # Calculate average stress score
+                all_scores = []
+                for test in st.session_state.test_history:
+                    for feature, value in test['responses'].items():
+                        if 'gender' not in feature.lower() and 'age' not in feature.lower():
+                            if isinstance(value, (int, float)):
+                                all_scores.append(value)
+                
+                avg_score = np.mean(all_scores) if all_scores else 0
+                
+                # Stress level counts
+                stress_counts = {'Low': 0, 'Moderate': 0, 'High': 0}
+                for test in st.session_state.test_history:
+                    stress_counts[test['stress_level']] += 1
+                
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.metric("Total Tests", total_tests)
+                    st.metric("Avg Score", f"{avg_score:.1f}/10")
+                with col_b:
+                    st.metric("High Stress", stress_counts['High'])
+                    st.metric("Low Stress", stress_counts['Low'])
+                
+                st.markdown("---")
+                st.markdown("**Most Common Stress Level:**")
+                most_common = max(stress_counts, key=stress_counts.get)
+                if most_common == "Low":
+                    st.success(f"{most_common}")
+                elif most_common == "Moderate":
+                    st.warning(f"{most_common}")
+                else:
+                    st.error(f"{most_common}")
             else:
-                st.info("No batch prediction history yet.")
+                st.info("Complete self-tests to see statistics")
+        
+                st.markdown("---")
 
 # ==================================== PAGE 2: MODEL FILES STATUS =========================================
 elif page == "📤 Model Files Status":
@@ -1676,7 +1688,7 @@ elif page == "🔍 SHAP Explanations":
             st.markdown("""
             <div class="info-box">
                 <strong>What this shows:</strong> Comparison between what the model considers important and what students actually report.
-                This includes both self-test and batch prediction data to help identify alignment and gaps.
+                This includes both self-test data to help identify alignment and gaps.
             </div>
             """, unsafe_allow_html=True)
             
@@ -1704,22 +1716,6 @@ elif page == "🔍 SHAP Explanations":
                             user_scores[clean] = []
                         if isinstance(value, (int, float)):
                             user_scores[clean].append(value)
-                
-                # Collect from batch predictions (if available)
-                for batch in st.session_state.prediction_history:
-                    if 'data' in batch and batch['data'] is not None:
-                        df = batch['data']
-                        for col in df.columns:
-                            # Skip gender and age
-                            if 'gender' in col.lower() or 'age' in col.lower():
-                                continue
-                            clean = col.split('.')[0] if '.' in col else col
-                            values = df[col].dropna().tolist()
-                            numeric_values = [v for v in values if isinstance(v, (int, float))]
-                            if numeric_values:
-                                if clean not in user_scores:
-                                    user_scores[clean] = []
-                                user_scores[clean].extend(numeric_values)
                 
                 user_avg = {k: np.mean(v) for k, v in user_scores.items() if v}
                 
@@ -1791,91 +1787,10 @@ elif page == "🔍 SHAP Explanations":
                         "\n".join([f"- {concern}" for concern in top_concerns]))
                     
                 else:
-                    st.info("Complete more self-tests or batch predictions to enable comparison")
+                    st.info("Complete more self-tests to enable comparison")
             else:
-                st.info("Complete self-tests or batch predictions to see model vs student perception")
+                st.info("Complete self-tests to see model vs student perception")
 
-# ==================================== PAGE 5: BATCH PREDICTION =========================================================
-elif page == "📂 Batch Prediction":
-    st.header("Batch Prediction")
-    st.markdown("Upload a CSV file with multiple student records to get stress predictions for all.")
-    
-    if st.session_state.model is None:
-        st.warning("No model loaded. Please upload your model files first.")
-    else:
-        with st.expander("Required CSV Format"):
-            st.markdown("Your CSV must contain ALL these columns:")
-            for f in st.session_state.original_feature_names[:10]:
-                st.write(f"- `{f}`")
-            if len(st.session_state.original_feature_names) > 10:
-                st.write(f"- ... and {len(st.session_state.original_feature_names) - 10} more")
-        
-        uploaded_file = st.file_uploader("Choose CSV file", type="csv")
-        
-        if uploaded_file is not None:
-            df = pd.read_csv(uploaded_file)
-            st.subheader("Uploaded Data Preview")
-            st.dataframe(df.head())
-            
-            missing = [f for f in st.session_state.original_feature_names if f not in df.columns]
-            if missing:
-                st.error(f"Missing columns: {missing[:5]}")
-            else:
-                if st.button("Run Batch Prediction", type="primary"):
-                    with st.spinner("Predicting..."):
-                        predictions, probabilities = predict_stress(
-                            df,
-                            st.session_state.model,
-                            st.session_state.scaler,
-                            st.session_state.label_encoder,
-                            st.session_state.original_feature_names
-                        )
-                        
-                        if predictions is not None:
-                            df['Predicted_Stress'] = predictions
-                            classes = get_label_encoder_classes(st.session_state.label_encoder)
-                            for i, level in enumerate(classes):
-                                df[f'Probability_{level}'] = probabilities[:, i]
-                            
-                            st.subheader("Prediction Results")
-                            st.dataframe(df)
-                            
-                            col1, col2, col3 = st.columns(3)
-                            counts = df['Predicted_Stress'].value_counts()
-                            total = len(df)
-                            
-                            with col1:
-                                st.metric("Total Students", total)
-                            with col2:
-                                high_count = counts.get('High', 0)
-                                st.metric("High Stress", f"{high_count} ({high_count/total*100:.1f}%)")
-                            with col3:
-                                low_count = counts.get('Low', 0)
-                                st.metric("Low Stress", f"{low_count} ({low_count/total*100:.1f}%)")
-                            
-                            fig = px.pie(
-                                values=counts.values,
-                                names=counts.index,
-                                title="Stress Level Distribution",
-                                color=counts.index,
-                                color_discrete_map={'Low': '#28a745', 'Moderate': '#ffc107', 'High': '#dc3545'}
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # Store in history
-                            st.session_state.prediction_history.append({
-                                'timestamp': pd.Timestamp.now(),
-                                'data': df,
-                                'predictions': predictions.tolist() if hasattr(predictions, 'tolist') else list(predictions)
-                            })
-                            
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label="Download Results as CSV",
-                                data=csv,
-                                file_name="stress_predictions.csv",
-                                mime="text/csv"
-                            )
 
 # ================================ FOOTER ===========================================
 st.markdown("---")
