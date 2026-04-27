@@ -181,7 +181,7 @@ with st.sidebar:
     
         **Step 2:** Review the SHAP explanation chart to see which factors affected your prediction.
                     
-        **Step 3:** Download your personalized assessment report as PDF file. 
+        **Step 3:** Download your personalised assessment report as PDF file. 
     
         **Step 4:** Visit 'SHAP Explanations' for global model insights and model comparison results.
                     
@@ -746,7 +746,7 @@ elif page == "📝 Student Self-Test":
     from fpdf import FPDF
     
     st.header("Student Stress Assessment")
-    st.markdown("Complete the questionnaire to get your personalized stress level assessment.")
+    st.markdown("Complete the questionnaire to get your personalised stress level assessment.")
     
     if st.session_state.model is None:
         st.warning("No model loaded. Please refresh the page to load the model files first.")
@@ -1040,7 +1040,7 @@ elif page == "📝 Student Self-Test":
                         st.markdown("---")
                         
                         # ==================== RECOMMENDATIONS SECTION ====================
-                        st.subheader("Personalized Recommendations")
+                        st.subheader("Personalised Recommendations")
                         
                         recommendations_text = ""
                         
@@ -1684,7 +1684,7 @@ elif page == "🔍 SHAP Explanations":
                 st.info("SHAP data not found. Please ensure 'shap_global_importance.csv' is in the models folder.")
         
         with tab2:
-            st.subheader("Model Importance vs Student Reports")
+            st.subheader("Global Importance vs Student Reports")
             st.markdown("""
             <div class="info-box">
                 <strong>What this shows:</strong> Comparison between what the model considers important and what students actually report.
@@ -1728,7 +1728,7 @@ elif page == "🔍 SHAP Explanations":
                     user_score = user_avg.get(feat, 0)
                     comparison.append({
                         'Feature': feat,  
-                        'Model Importance': model_score,
+                        'Global Importance': model_score,
                         'Student Score': user_score,
                     })
                 
@@ -1736,36 +1736,36 @@ elif page == "🔍 SHAP Explanations":
                     comp_df = pd.DataFrame(comparison)
                     
                     # Normalize scores for better comparison
-                    if comp_df['Model Importance'].max() > 0:
-                        comp_df['Model Importance (Normalized)'] = comp_df['Model Importance'] / comp_df['Model Importance'].max()
+                    if comp_df['Global Importance'].max() > 0:
+                        comp_df['Global Importance (Normalised)'] = comp_df['Global Importance'] / comp_df['Global Importance'].max()
                     else:
-                        comp_df['Model Importance (Normalized)'] = 0
+                        comp_df['Global Importance (Normalised)'] = 0
                     
-                    comp_df['Student Score (Normalized)'] = comp_df['Student Score'] / 10
+                    comp_df['Student Score (Normalised)'] = comp_df['Student Score'] / 10
                     
                     # Sort by Student Score (highest to lowest) - use descending for proper display
                     comp_df = comp_df.sort_values('Student Score', ascending=False)  
                     
                     # Create a horizontal grouped bar chart 
                     plot_df = comp_df.melt(id_vars=['Feature'], 
-                                        value_vars=['Model Importance (Normalized)', 'Student Score (Normalized)'],
+                                        value_vars=['Global Importance (Normalised)', 'Student Score (Normalised)'],
                                         var_name='Source', value_name='Score')
                     
                     # Replace source names for cleaner legend
                     plot_df['Source'] = plot_df['Source'].replace({
-                        'Model Importance (Normalized)': 'Model Importance',
-                        'Student Score (Normalized)': 'Student Reports'
+                        'Global Importance (Normalised)': 'Global Importance',
+                        'Student Score (Normalised)': 'Student Reports'
                     })
                     
                     # Dynamic height based on number of features
                     chart_height = max(500, len(comp_df) * 40)
                     
                     fig_comp = px.bar(plot_df, x='Score', y='Feature', color='Source',
-                                    title="Model Importance vs Student-Reported Scores",
+                                    title="Global Importance vs Student-Reported Scores",
                                     orientation='h',
                                     barmode='group',
                                     color_discrete_map={
-                                        'Model Importance': '#BDC3C7',
+                                        'Global Importance': '#BDC3C7',
                                         'Student Reports': '#2980B9'
                                     },
                                     text='Score',
@@ -1773,7 +1773,7 @@ elif page == "🔍 SHAP Explanations":
                                     category_orders={'Feature': comp_df['Feature'].tolist()})  # Force order
                     fig_comp.update_traces(texttemplate='%{text:.2f}', textposition='outside')
                     fig_comp.update_layout(
-                        xaxis_title="Normalized Score (0-1)",
+                        xaxis_title="Normalised Score (0-1)",
                         yaxis_title="",
                         yaxis={'tickfont': {'size': 12}},
                         legend_title="Source",
@@ -1783,7 +1783,7 @@ elif page == "🔍 SHAP Explanations":
                     
                     # Show top 5 student-reported concerns
                     top_concerns = comp_df.nlargest(5, 'Student Score')['Feature'].tolist()
-                    st.info("**Top 5 Student-Reported Concerns:**\n" + 
+                    st.info("**Overall Top 5 Student-Reported Concerns:**\n" + 
                         "\n".join([f"- {concern}" for concern in top_concerns]))
                     
                 else:
