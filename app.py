@@ -1604,15 +1604,22 @@ elif page == "📝 Student Self-Test":
                 # Save to bytes
                 pdf_output = pdf.output(dest='S').encode('latin1')
 
+                # Initialize counter in session state if it doesn't exist
+                if 'download_counter' not in st.session_state:
+                    st.session_state.download_counter = 1
+
                 # Full width download button
                 st.download_button(
                     label="Download Results as PDF",
                     data=pdf_output,
-                    file_name=f"stress_assessment_{datetime.now().strftime('%d%m%Y')}.pdf",
+                    file_name=f"{st.session_state.download_counter:04d}_stress_assessment_{datetime.now().strftime('%d%m%Y')}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                     key="download_pdf_button"
                 )
+
+                # Increment counter after download
+                st.session_state.download_counter += 1
 
                 st.caption("Download your assessment results as a PDF report")
 
