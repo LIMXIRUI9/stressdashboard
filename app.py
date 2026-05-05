@@ -939,14 +939,21 @@ elif page == "📝 Student Self-Test":
                                 clean_name = row['Feature'].split('.')[0] if '.' in row['Feature'] else row['Feature']
                                 shap_importance[clean_name.lower()] = row['Importance']
 
-                        # Collect user's responses for analysis
+                        # Collect user's responses for analysis - WITH DEDUPLICATION
                         impact_data = []
+                        seen_factors = set()  # TRACK SEEN FACTORS
+
                         for feature, value in user_input.items():
                             # Skip gender and age
                             if 'gender' in feature.lower() or 'age' in feature.lower():
                                 continue
                                 
                             clean = feature.split('.')[0] if '.' in feature else feature
+                            
+                            # SKIP DUPLICATES - only process each unique question once
+                            if clean.lower() in seen_factors:
+                                continue
+                            seen_factors.add(clean.lower())
                             
                             if isinstance(value, (int, float)):
                                 # Get SHAP importance weight
@@ -1349,11 +1356,18 @@ elif page == "📝 Student Self-Test":
 
                 # Collect impact data for SHAP analysis
                 impact_data = []
+                seen_factors = set()  # TRACK SEEN FACTORS
+
                 for feature, value in user_input.items():
                     if 'gender' in feature.lower() or 'age' in feature.lower():
                         continue
                         
                     clean = feature.split('.')[0] if '.' in feature else feature
+                    
+                    # SKIP DUPLICATES
+                    if clean.lower() in seen_factors:
+                        continue
+                    seen_factors.add(clean.lower())
                     
                     if isinstance(value, (int, float)):
                         importance_weight = 1.0
@@ -1367,7 +1381,7 @@ elif page == "📝 Student Self-Test":
                             category = "Stress Contributor"
                         elif value <= 3:
                             effect = "Low (0-3)"
-                            category = "Stress Reducer"
+                            category = "Low Stress"
                         else:
                             effect = "Moderate (4-6)"
                             category = "Neutral"
@@ -1429,7 +1443,7 @@ elif page == "📝 Student Self-Test":
                         pdf.set_font('Arial', '', 10)
                         if row['Category'] == "Stress Contributor":
                             pdf.set_text_color(220, 53, 69)
-                        elif row['Category'] == "Stress Reducer":
+                        elif row['Category'] == "Low Stress":
                             pdf.set_text_color(40, 167, 69)
                         else:
                             pdf.set_text_color(100, 100, 100)
@@ -1454,7 +1468,7 @@ elif page == "📝 Student Self-Test":
                     
                     pdf.set_font('Arial', 'B', 9)
                     pdf.set_text_color(0, 0, 0)
-                    pdf.multi_cell(0, 5, f"Summary: {high_count} factors with scores 7-10 (stress contributors), {low_count} factors with scores 0-3 (stress reducers), {moderate_count} factors with scores 4-6 (neutral).", 0, 'L')
+                    pdf.multi_cell(0, 5, f"Summary: {high_count} factors with scores 7-10 (stress contributors), {low_count} factors with scores 0-3 (low stress), {moderate_count} factors with scores 4-6 (neutral).", 0, 'L')
                     
                     pdf.ln(4)
                     pdf.set_font('Arial', 'I', 8)
