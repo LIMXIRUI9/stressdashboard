@@ -939,9 +939,9 @@ elif page == "📝 Student Self-Test":
                                 clean_name = row['Feature'].split('.')[0] if '.' in row['Feature'] else row['Feature']
                                 shap_importance[clean_name.lower()] = row['Importance']
 
-                        # Collect user's responses for analysis - WITH DEDUPLICATION
+                        # Collect user's responses for analysis
                         impact_data = []
-                        seen_factors = set()  # TRACK SEEN FACTORS
+                        seen_factors = set()  
 
                         for feature, value in user_input.items():
                             # Skip gender and age
@@ -950,7 +950,7 @@ elif page == "📝 Student Self-Test":
                                 
                             clean = feature.split('.')[0] if '.' in feature else feature
                             
-                            # SKIP DUPLICATES - only process each unique question once
+                            # remove duplicates - only process each unique question once
                             if clean.lower() in seen_factors:
                                 continue
                             seen_factors.add(clean.lower())
@@ -1283,16 +1283,16 @@ elif page == "📝 Student Self-Test":
                             response_items.append((display_feature, display_value, interpretation, numeric_val))
                             break
 
-                # FIXED RESPONSES TABLE 
+                # fixed responses table font
                 pdf.set_font('Arial', '', 10)
 
                 # page width for full width table
                 page_width = pdf.w - pdf.l_margin - pdf.r_margin
 
                 # Column widths
-                width_number = 12      # Question number column
-                width_score = 25       # Score column
-                width_interpretation = 35  # Interpretation column
+                width_number = 12     
+                width_score = 25      
+                width_interpretation = 35  
                 width_feature = page_width - width_number - width_score - width_interpretation - 10  # Remaining for feature
 
                 for idx, (feature, display_value, interpretation, numeric_val) in enumerate(response_items):
@@ -1304,7 +1304,7 @@ elif page == "📝 Student Self-Test":
                     pdf.set_text_color(46, 134, 171)
                     pdf.cell(width_number, 8, f"{idx + 1}.", 0, 0, 'L')
                     
-                    # FULL FEATURE NAME 
+                    # feature names
                     pdf.set_font('Arial', '', 9)
                     pdf.set_text_color(0, 0, 0)
                     pdf.cell(width_feature, 8, feature, 0, 0, 'L')
@@ -1356,7 +1356,7 @@ elif page == "📝 Student Self-Test":
 
                 # Collect impact data for SHAP analysis
                 impact_data = []
-                seen_factors = set()  # TRACK SEEN FACTORS
+                seen_factors = set()  
 
                 for feature, value in user_input.items():
                     if 'gender' in feature.lower() or 'age' in feature.lower():
@@ -1364,7 +1364,7 @@ elif page == "📝 Student Self-Test":
                         
                     clean = feature.split('.')[0] if '.' in feature else feature
                     
-                    # SKIP DUPLICATES
+                    # remove duplicates
                     if clean.lower() in seen_factors:
                         continue
                     seen_factors.add(clean.lower())
@@ -1409,9 +1409,9 @@ elif page == "📝 Student Self-Test":
                     # STANDARDIZED SHAP TABLE 
                     page_width = pdf.w - pdf.l_margin - pdf.r_margin
                     
-                    width_factor = page_width * 0.58    # 58% for Factor (full names)
-                    width_score = page_width * 0.12     # 12% for Score
-                    width_category = page_width * 0.30  # 30% for Category
+                    width_factor = page_width * 0.58    
+                    width_score = page_width * 0.12     
+                    width_category = page_width * 0.30  
                     
                     # Header row 
                     pdf.set_font('Arial', 'B', 10)
@@ -1435,7 +1435,7 @@ elif page == "📝 Student Self-Test":
                         # Factor column
                         pdf.cell(width_factor, 7, factor_text, 0, 0, 'L')
                         
-                        # Score column - centered
+                        # Score column 
                         pdf.set_font('Arial', 'B', 10)
                         pdf.cell(width_score, 7, str(row['Score']), 0, 0, 'C')
                         
@@ -1451,7 +1451,7 @@ elif page == "📝 Student Self-Test":
                         pdf.cell(width_category, 7, row['Category'], 0, 1, 'L')
                         pdf.set_text_color(0, 0, 0)
                         
-                        # Add consistent spacing between rows (3 units)
+                        # Add consistent spacing between rows 
                         pdf.ln(3)
                     
                     pdf.ln(6)
@@ -1740,7 +1740,7 @@ elif page == "🔍 SHAP Explanations":
                 
                 user_avg = {k: np.mean(v) for k, v in user_scores.items() if v}
                 
-                # Combine ALL features 
+                # Combine all features 
                 comparison = []
                 all_features = set(model_imp.keys()) | set(user_avg.keys())
                 
