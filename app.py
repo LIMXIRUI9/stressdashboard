@@ -93,6 +93,35 @@ st.markdown("""
         text-align: center;
         justify-content: center;
     }
+    .minimal-metric-box {
+        background: white;
+        padding: 20px 15px;
+        border-radius: 12px;
+        text-align: center;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
+    }
+    .minimal-metric-box:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-color: #2E86AB;
+    }
+    .minimal-metric-label {
+        font-size: 0.8rem;
+        margin-bottom: 8px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .minimal-metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        
+        margin: 5px 0;
+    }
+    .minimal-metric-caption {
+        color: #adb5bd;
+        font-size: 0.7rem;
+    }
 """, unsafe_allow_html=True)
 
 # ==================== HELPER FUNCTIONS ====================
@@ -322,20 +351,31 @@ if page == "🏠 Dashboard Overview":
     else:
         # ============ SECTION 1: KEY METRICS ============
         st.subheader("Key Metrics")
+
         col1, col2, col3, col4 = st.columns(4)
-        
+
         with col1:
             total_features = len(st.session_state.original_feature_names)
             unique_features = len(st.session_state.display_features)
-            st.metric("Total Features", f"{total_features}")
-            st.caption(f"({unique_features} unique questions)")
-        
+            st.markdown(f"""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">TOTAL FEATURES</div>
+                <div class="minimal-metric-value">{total_features}</div>
+                <div class="minimal-metric-caption">{unique_features} unique questions</div>
+            </div>
+            """, unsafe_allow_html=True)
+
         with col2:
             if st.session_state.label_encoder is not None:
                 classes = get_label_encoder_classes(st.session_state.label_encoder)
-                st.metric("Stress Levels", len(classes))
-                st.caption("Low / Moderate / High")
-        
+                st.markdown(f"""
+                <div class="minimal-metric-box">
+                    <div class="minimal-metric-label">STRESS LEVELS</div>
+                    <div class="minimal-metric-value">{len(classes)}</div>
+                    <div class="minimal-metric-caption">Low / Moderate / High</div>
+                </div>
+                """, unsafe_allow_html=True)
+
         with col3:
             total_predictions = 0
             self_test_count = 0
@@ -344,13 +384,23 @@ if page == "🏠 Dashboard Overview":
                 self_test_count = len(st.session_state.test_history)
             
             total_predictions = self_test_count 
-            st.metric("Total Predictions", total_predictions)
-            st.caption(f"Self-Test: {self_test_count} ")
-        
+            st.markdown(f"""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">TOTAL PREDICTIONS</div>
+                <div class="minimal-metric-value">{total_predictions}</div>
+                <div class="minimal-metric-caption">Self-Test: {self_test_count}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
         with col4:
-            st.metric("ML Model", "AdaBoost")
-            st.caption("Ensemble Learning Method")
-        
+            st.markdown(f"""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">ML MODEL</div>
+                <div class="minimal-metric-value">AdaBoost</div>
+                <div class="minimal-metric-caption">Ensemble Learning</div>
+            </div>
+            """, unsafe_allow_html=True)
+
         st.markdown("---")
         
         # ============ SECTION 2: DEMOGRAPHIC ANALYSIS ============
@@ -605,66 +655,79 @@ if page == "🏠 Dashboard Overview":
             st.info("Complete self-tests to see top stress factors")
         st.markdown("---")
                 
-        # ============ SECTION 5: RECENT ACTIVITY ============
-        st.subheader("Recent Activity")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("Recent Self-Tests")
-            if 'test_history' in st.session_state and st.session_state.test_history:
-                recent_tests = st.session_state.test_history[-5:]
-                for test in reversed(recent_tests):
-                    time_str = test['timestamp'].strftime("%d/%m/%Y %H:%M")
-                    if test['stress_level'] == 'Low':
-                        st.success(f"{time_str} → {test['stress_level']} Stress")
-                    elif test['stress_level'] == 'Moderate':
-                        st.warning(f"{time_str} → {test['stress_level']} Stress")
-                    else:
-                        st.error(f"{time_str} → {test['stress_level']} Stress")
+       # ============ SECTION 5: QUICK STATS ============
+        st.subheader("Quick Statistics")
+
+        if 'test_history' in st.session_state and st.session_state.test_history:
+            total_tests = len(st.session_state.test_history)
+            
+            # Calculate average stress score
+            all_scores = []
+            for test in st.session_state.test_history:
+                for feature, value in test['responses'].items():
+                    if 'gender' not in feature.lower() and 'age' not in feature.lower():
+                        if isinstance(value, (int, float)):
+                            all_scores.append(value)
+            
+            avg_score = np.mean(all_scores) if all_scores else 0
+            
+            # Stress level counts
+            stress_counts = {'Low': 0, 'Moderate': 0, 'High': 0}
+            for test in st.session_state.test_history:
+                stress_counts[test['stress_level']] += 1
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="minimal-metric-box">
+                    <div class="minimal-metric-label">AVERAGE SCORE</div>
+                    <div class="minimal-metric-value">{avg_score:.1f}<span style="font-size: 1rem;">/10</span></div>
+                    <div class="minimal-metric-caption">Overall stress level</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="minimal-metric-box">
+                    <div class="minimal-metric-label">HIGH STRESS</div>
+                    <div class="minimal-metric-value" style="color: #dc3545;">{stress_counts['High']}</div>
+                    <div class="minimal-metric-caption">Need attention</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div class="minimal-metric-box">
+                    <div class="minimal-metric-label">MODERATE STRESS</div>
+                    <div class="minimal-metric-value" style="color: #ffc107;">{stress_counts['Moderate']}</div>
+                    <div class="minimal-metric-caption">Manageable level</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown(f"""
+                <div class="minimal-metric-box">
+                    <div class="minimal-metric-label">LOW STRESS</div>
+                    <div class="minimal-metric-value" style="color: #28a745;">{stress_counts['Low']}</div>
+                    <div class="minimal-metric-caption">Managing well</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Most Common Stress Level
+            most_common = max(stress_counts, key=stress_counts.get)
+            if most_common == "Low":
+                st.success(f"### Overall: {most_common} Stress Level")
+            elif most_common == "Moderate":
+                st.warning(f"### Overall: {most_common} Stress Level")
             else:
-                st.info("No self-test history yet.")
-        with col2:
-            st.markdown("Quick Stats")
-            if 'test_history' in st.session_state and st.session_state.test_history:
-                total_tests = len(st.session_state.test_history)
-                
-                # Calculate average stress score
-                all_scores = []
-                for test in st.session_state.test_history:
-                    for feature, value in test['responses'].items():
-                        if 'gender' not in feature.lower() and 'age' not in feature.lower():
-                            if isinstance(value, (int, float)):
-                                all_scores.append(value)
-                
-                avg_score = np.mean(all_scores) if all_scores else 0
-                
-                # Stress level counts
-                stress_counts = {'Low': 0, 'Moderate': 0, 'High': 0}
-                for test in st.session_state.test_history:
-                    stress_counts[test['stress_level']] += 1
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("Total Tests", total_tests)
-                    st.metric("Avg Score", f"{avg_score:.1f}/10")
-                with col_b:
-                    st.metric("High Stress", stress_counts['High'])
-                    st.metric("Low Stress", stress_counts['Low'])
-                
-                st.markdown("---")
-                st.markdown("**Most Common Stress Level:**")
-                most_common = max(stress_counts, key=stress_counts.get)
-                if most_common == "Low":
-                    st.success(f"{most_common}")
-                elif most_common == "Moderate":
-                    st.warning(f"{most_common}")
-                else:
-                    st.error(f"{most_common}")
-            else:
-                st.info("Complete self-tests to see statistics")
-        
-                st.markdown("---")
+                st.error(f"### Overall: {most_common} Stress Level")
+
+        else:
+            st.info("Complete self-tests to see statistics")
+            st.markdown("---")
 
 # ==================================== PAGE 2: MODEL FILES STATUS =========================================
 elif page == "📤 Model Files Status":
@@ -674,24 +737,65 @@ elif page == "📤 Model Files Status":
     st.subheader("Current Status")
     
     if st.session_state.model is not None:
-        st.markdown("""
-        <div class="success-box">
-            <strong>Models Loaded Successfully</strong><br>
-        </div>
-        """, unsafe_allow_html=True)
         
+        # Create 3 columns with box styling
         col1, col2, col3 = st.columns(3)
+        
         with col1:
-            st.metric("Status", "Active")
+            st.markdown(f"""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">STATUS</div>
+                <div class="minimal-metric-value" style="color: #28a745;">Active</div>
+                <div class="minimal-metric-caption">All systems operational</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col2:
             total = len(st.session_state.original_feature_names)
             unique = len(st.session_state.display_features)
-            st.metric("Features", f"{total} total")
+            st.markdown(f"""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">FEATURES</div>
+                <div class="minimal-metric-value">{total}</div>
+                <div class="minimal-metric-caption">Total: {total} | Unique: {unique}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col3:
-            if st.session_state.importance_df is not None:
-                st.metric("SHAP", "Available")
-            else:
-                st.metric("SHAP", "Optional")
+            shap_status = "Available" if st.session_state.importance_df is not None else "Not Available"
+            shap_color = "#28a745" if st.session_state.importance_df is not None else "#dc3545"
+            st.markdown(f"""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">SHAP ANALYSIS</div>
+                <div class="minimal-metric-value" style="color: {shap_color};">{shap_status}</div>
+                <div class="minimal-metric-caption">Global feature importance</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Add model details section with boxes
+        st.subheader("Model Details")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">MODEL TYPE</div>
+                <div class="minimal-metric-value" style="font-size: 1.3rem;">AdaBoost Classifier</div>
+                <div class="minimal-metric-caption">Ensemble learning method</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">EXPLAINABILITY</div>
+                <div class="minimal-metric-value" style="font-size: 1.3rem;">SHAP Values</div>
+                <div class="minimal-metric-caption">Local & Global explanations</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
@@ -734,9 +838,40 @@ elif page == "📤 Model Files Status":
         # No models loaded
         st.markdown("""
         <div class="warning-box">
-        No models loaded. Please refresh the page to enable the auto load models.
+            <strong>⚠️ No models loaded</strong><br>
+            Please refresh the page to enable the auto load models.
         </div>
         """, unsafe_allow_html=True)
+        
+        # Show status boxes even when no models are loaded
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">STATUS</div>
+                <div class="minimal-metric-value" style="color: #dc3545;">Inactive</div>
+                <div class="minimal-metric-caption">No models loaded</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">FEATURES</div>
+                <div class="minimal-metric-value">0</div>
+                <div class="minimal-metric-caption">No features available</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="minimal-metric-box">
+                <div class="minimal-metric-label">SHAP ANALYSIS</div>
+                <div class="minimal-metric-value" style="color: #dc3545;">Unavailable</div>
+                <div class="minimal-metric-caption">Models required</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
 
@@ -950,7 +1085,7 @@ elif page == "📝 Student Self-Test":
                                 
                             clean = feature.split('.')[0] if '.' in feature else feature
                             
-                            # remove duplicates - only process each unique question once
+                            # remove duplicate  - only process each unique question once
                             if clean.lower() in seen_factors:
                                 continue
                             seen_factors.add(clean.lower())
