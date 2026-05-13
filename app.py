@@ -1785,6 +1785,8 @@ elif page == "🔍 SHAP Explanations":
         
         with tab1:  # Global feature importance
             st.subheader("Global Feature Importance")
+            
+            # Info box at the top
             st.markdown("""
             <div class="info-box">
                 <strong>What this shows:</strong> Which factors most influence stress predictions across all students.
@@ -1802,12 +1804,22 @@ elif page == "🔍 SHAP Explanations":
 
                 importance_df['Display Name'] = display_names
                 
-                # Show top factor
+                # Top Factor Card
                 top_feature = importance_df.iloc[0]['Display Name']
                 top_importance = importance_df.iloc[0]['Importance']
-                st.metric("Most Important Factor", top_feature, f"Score: {top_importance:.4f}")
+                
+                st.markdown(f"""
+                <div class="top-factor-card">
+                    <div style="font-size: 0.9rem; color: #6c757d; margin-bottom: 5px;">MOST IMPORTANT FACTOR</div>
+                    <div style="font-size: 2.1rem;">{top_feature}</div>
+                    <div style="font-size: 0.9rem; color: #dc3545; margin-top: 5px;">Importance Score: {top_importance:.4f}</div>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 st.markdown("---")
+                
+                # Chart box for bar chart
+                st.markdown('<div class="chart-box">', unsafe_allow_html=True)
                 
                 # Bar chart
                 fig_importance = px.bar(importance_df, x='Importance', y='Display Name', 
@@ -1823,14 +1835,17 @@ elif page == "🔍 SHAP Explanations":
                     yaxis_title="",
                     yaxis={'categoryorder': 'total ascending'},
                     showlegend=False,
-                    margin=dict(l=0, r=0, t=40, b=0)
+                    margin=dict(l=0, r=0, t=40, b=0),
+                    plot_bgcolor='white',
+                    paper_bgcolor='white'
                 )
                 st.plotly_chart(fig_importance, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
                 
-                # Info box 
+                # How to read box
                 st.markdown("""
                 <div class="info-box">
-                    <strong>How to read:</strong><br>
+                    <strong>📖 How to read this chart:</strong><br>
                     • Higher importance score = Stronger influence on stress prediction<br>
                     • Top factors should be prioritized for intervention<br>
                     • These results are based on SHAP analysis from the trained model
@@ -1838,7 +1853,7 @@ elif page == "🔍 SHAP Explanations":
                 """, unsafe_allow_html=True)
             else:
                 st.info("SHAP data not found. Please ensure 'shap_global_importance.csv' is in the models folder.")
-        
+
         with tab2:
             st.subheader("Global Importance vs Student Reports")
             st.markdown("""
