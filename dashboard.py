@@ -154,13 +154,13 @@ def safe_inverse_transform(encoder, predictions):
         st.error(f"Error in inverse transform: {e}")
         return predictions
 
+#clean the duplicate features name
 def get_unique_display_features(feature_names):
-    """Get unique feature names for display (removes .1, .2 duplicates)"""
+    """Get unique feature names for display"""
     unique_features = []
     seen_features = set()
     
-    for feature in feature_names:
-        # Clean the feature name remove the duplicate columns
+    for feature in feature_names: 
         clean_feature = feature.split('.')[0] if '.' in feature else feature
         
         if clean_feature.lower() not in seen_features:
@@ -174,7 +174,6 @@ def create_feature_mapping(original_features):
     feature_mapping = {}
     
     for feature in original_features:
-        # Get base name 
         base_name = feature.split('.')[0] if '.' in feature else feature
         
         if base_name not in feature_mapping:
@@ -410,7 +409,7 @@ if page == "🏠 Dashboard Overview":
         col1, col2 = st.columns(2)
         
         with col1:
-            # Age Distribution - Bar Chart (University students 18-30)
+            # Age Distribution - Bar Chart 
             ages = []
             if 'test_history' in st.session_state:
                 for test in st.session_state.test_history:
@@ -423,7 +422,6 @@ if page == "🏠 Dashboard Overview":
             
             if ages:
                 age_df = pd.DataFrame({'Age': ages})
-                # Specific bins for university age range 18-30
                 bins = [18, 21, 24, 27, 30, 31]
                 labels = ['18-20', '21-23', '24-26', '27-29', '30']
                 age_df['Age Group'] = pd.cut(age_df['Age'], bins=bins, labels=labels, right=False)
@@ -517,7 +515,7 @@ if page == "🏠 Dashboard Overview":
                 st.info("No prediction data yet.")
 
         with col2:
-            # Stress by Category (Bar chart)
+            # Stress by Category - Bar chart
             category_questions = {
                 'Physical Health': [
                     'rapid heartbeat or palpitations',
@@ -583,7 +581,6 @@ if page == "🏠 Dashboard Overview":
                         'Average Stress Score': list(avg_category.values())
                     }).sort_values('Average Stress Score', ascending=False)
                     
-                    # Vertical bar chart
                     fig_category = px.bar(category_df, x='Category', y='Average Stress Score',
                                         title="Average Stress Score by Category",
                                         color='Average Stress Score',
@@ -609,7 +606,6 @@ if page == "🏠 Dashboard Overview":
         st.subheader("Top Student-Reported Stress Factors")
 
         if st.session_state.test_history:
-            # Collect all responses
             all_scores = {}
             for test in st.session_state.test_history:
                 for feature, value in test['responses'].items():
@@ -620,7 +616,7 @@ if page == "🏠 Dashboard Overview":
                         if isinstance(value, (int, float)):
                             all_scores[clean].append(value)
             
-            # Calculate averages
+            # Calculate averages and display top 10 features
             avg_scores = []
             for factor, scores in all_scores.items():
                 if scores:
@@ -634,7 +630,6 @@ if page == "🏠 Dashboard Overview":
                 avg_df = pd.DataFrame(avg_scores)
                 avg_df = avg_df.sort_values('Average Score', ascending=True).head(10)
                 
-                # Increase height to accommodate full questions
                 fig_top = px.bar(avg_df, x='Average Score', y='Factor',
                                 orientation='h',
                                 title="Top 10 Highest Rated Stress Factors",
@@ -732,13 +727,9 @@ if page == "🏠 Dashboard Overview":
 # ==================================== PAGE 2: MODEL FILES STATUS =========================================
 elif page == "📤 Model Files Status":
     st.header("Model Configuration")
-    
-    # ============ CURRENTLY LOADED STATUS ============
     st.subheader("Current Status")
     
     if st.session_state.model is not None:
-        
-        # Create 3 columns with box styling
         col1, col2, col3 = st.columns(3)
         
         with col1:
@@ -773,10 +764,8 @@ elif page == "📤 Model Files Status":
             """, unsafe_allow_html=True)
         
         st.markdown("---")
-        
-        # Add model details section with boxes
+
         st.subheader("Model Details")
-        
         col1, col2 = st.columns(2)
         
         with col1:
@@ -799,7 +788,7 @@ elif page == "📤 Model Files Status":
         
         st.markdown("---")
         
-        # Clear models with confirmation alert box
+        # clear model confirmation alert box
         if 'confirm_clear' not in st.session_state:
             st.session_state.confirm_clear = False
         
@@ -838,7 +827,7 @@ elif page == "📤 Model Files Status":
         # No models loaded
         st.markdown("""
         <div class="warning-box">
-            <strong>⚠️ No models loaded</strong><br>
+            <strong>No models loaded</strong><br>
             Please refresh the page to enable the auto load models.
         </div>
         """, unsafe_allow_html=True)
@@ -942,7 +931,7 @@ elif page == "📝 Student Self-Test":
                     else:
                         st.caption(f"Age: {value} - Late university years")
                                 
-                # Regular questions
+                # questions
                 else:
                     value = st.slider(
                         display_feature,
@@ -953,7 +942,6 @@ elif page == "📝 Student Self-Test":
                         key=f"slider_{idx}"
                     )
                     
-                    # Store value for original feature variants
                     for original_feature in st.session_state.feature_mapping[display_feature]:
                         user_input[original_feature] = value
                     
@@ -972,7 +960,6 @@ elif page == "📝 Student Self-Test":
         
         if st.button("Analyze My Stress Level", type="primary", use_container_width=True):
             with st.spinner("Analyzing your responses..."):
-                # Create dataframe with ALL original features
                 input_df = pd.DataFrame([user_input])
                 
                 # Verify all required features are present
@@ -1001,7 +988,7 @@ elif page == "📝 Student Self-Test":
                         else:
                             stress_level = str(pred_value).strip()
                         
-                        # Store in history
+                        # Store history
                         st.session_state.test_history.append({
                             'timestamp': pd.Timestamp.now(),
                             'stress_level': stress_level,
@@ -1085,7 +1072,7 @@ elif page == "📝 Student Self-Test":
                                 
                             clean = feature.split('.')[0] if '.' in feature else feature
                             
-                            # remove duplicate  - only process each unique question once
+                            # remove duplicate
                             if clean.lower() in seen_factors:
                                 continue
                             seen_factors.add(clean.lower())
@@ -1122,7 +1109,7 @@ elif page == "📝 Student Self-Test":
                                 })
 
                         if impact_data:
-                            # Sort by score (highest first)
+                            # Sort by score from high to low
                             impact_df = pd.DataFrame(impact_data)
                             impact_df = impact_df.sort_values('Your Score', ascending=False)
                             
@@ -1186,7 +1173,7 @@ elif page == "📝 Student Self-Test":
                         
                         recommendations_text = ""
                         
-                        if stress_level.lower() == "high":
+                        if stress_level.lower() == "high": 
                             recommendations_text = """
                             IMMEDIATE ACTIONS RECOMMENDED
                             
@@ -1240,7 +1227,7 @@ elif page == "📝 Student Self-Test":
                             - It's okay to ask for help before stress becomes overwhelming
                             """)
                         
-                        else:  # Low Stress
+                        else:  
                             recommendations_text = """
                             MAINTAIN YOUR HEALTHY HABITS
                             
@@ -1336,7 +1323,7 @@ elif page == "📝 Student Self-Test":
                 pdf.cell(0, 8, f"Report Date: {datetime.now().strftime('%d/%m/%Y at %H:%M:%S')}", 0, 1, 'R')
                 pdf.ln(5)
 
-                # ASSESSMENT RESULTS SECTION
+                # Assessment Results
                 pdf.section_title("ASSESSMENT RESULTS")
 
                 # Stress level 
@@ -1351,7 +1338,7 @@ elif page == "📝 Student Self-Test":
                 pdf.cell(0, 12, f"Predicted Stress Level: {stress_level.upper()}", 0, 1, 'C')
                 pdf.ln(5)
 
-                # CONFIDENCE SCORES SECTION
+                # Confidence score
                 pdf.section_title("CONFIDENCE SCORES")
                 pdf.add_explanation("The confidence scores below indicate how certain the model is about each stress level prediction. Higher percentages mean the model is more confident in that classification.")
 
@@ -1364,15 +1351,15 @@ elif page == "📝 Student Self-Test":
                     else:
                         pdf.confidence_bar(level, percentage, 220, 53, 69)
 
-                # Add guide
+                # Explanation
                 pdf.add_explanation("Interpretation: Low confidence (<50%) suggests uncertainty, while high confidence (>70%) indicates strong prediction certainty.")
                 pdf.ln(5)
 
-                # RESPONSES SUMMARY SECTION
+                # Responses summary
                 pdf.section_title("RESPONSES SUMMARY")
                 pdf.add_explanation("Your responses to each question are summarized below. Scores range from 0 (Never/Low) to 10 (Always/High).")
 
-                # all responses 
+                # Print all responses 
                 response_items = []
                 gender_display = {0: 'Male', 1: 'Female', 2: 'Prefer not to say'}
 
@@ -1383,8 +1370,7 @@ elif page == "📝 Student Self-Test":
                             if 'gender' in display_feature.lower():
                                 display_value = gender_display.get(val, str(val))
                                 interpretation = ""
-                                numeric_val = None
-                            # Handle age 
+                                numeric_val = None 
                             elif 'age' in display_feature.lower():
                                 display_value = str(val)
                                 if val <= 20:
@@ -1396,7 +1382,7 @@ elif page == "📝 Student Self-Test":
                                 else:
                                     interpretation = "(Late university)"
                                 numeric_val = None
-                            # Regular questions with score interpretation
+                            # Regular questions with each score
                             elif isinstance(val, (int, float)):
                                 display_value = str(val)
                                 if val <= 2:
@@ -1418,20 +1404,15 @@ elif page == "📝 Student Self-Test":
                             response_items.append((display_feature, display_value, interpretation, numeric_val))
                             break
 
-                # fixed responses table font
+                # responses table font & page width & column widths
                 pdf.set_font('Arial', '', 10)
-
-                # page width for full width table
                 page_width = pdf.w - pdf.l_margin - pdf.r_margin
-
-                # Column widths
                 width_number = 12     
                 width_score = 25      
                 width_interpretation = 35  
-                width_feature = page_width - width_number - width_score - width_interpretation - 10  # Remaining for feature
+                width_feature = page_width - width_number - width_score - width_interpretation - 10  
 
                 for idx, (feature, display_value, interpretation, numeric_val) in enumerate(response_items):
-                    # Get current Y position
                     start_y = pdf.get_y()
                     
                     # Question number
@@ -1472,7 +1453,7 @@ elif page == "📝 Student Self-Test":
                     pdf.set_text_color(100, 100, 100)
                     pdf.cell(width_interpretation, 8, interpretation, 0, 1, 'L')
                     
-                    # Add light separator line between rows
+                    # Add separator line between rows
                     if idx < len(response_items) - 1:
                         pdf.set_draw_color(230, 230, 230)
                         pdf.line(10, pdf.get_y() + 2, page_width + 10, pdf.get_y() + 2)
@@ -1496,10 +1477,8 @@ elif page == "📝 Student Self-Test":
                 for feature, value in user_input.items():
                     if 'gender' in feature.lower() or 'age' in feature.lower():
                         continue
-                        
+                    #remove duplicates data    
                     clean = feature.split('.')[0] if '.' in feature else feature
-                    
-                    # remove duplicates
                     if clean.lower() in seen_factors:
                         continue
                     seen_factors.add(clean.lower())
@@ -1541,7 +1520,7 @@ elif page == "📝 Student Self-Test":
                     pdf.cell(0, 8, "The following top 10 factors had the highest scores in your assessment:", 0, 1, 'L')
                     pdf.ln(3)
                     
-                    # STANDARDIZED SHAP TABLE 
+                    # set the page width
                     page_width = pdf.w - pdf.l_margin - pdf.r_margin
                     
                     width_factor = page_width * 0.58    
@@ -1564,17 +1543,11 @@ elif page == "📝 Student Self-Test":
                     pdf.set_font('Arial', '', 10)
                     
                     for idx, row in top_impact_df.iterrows():
-                        # full feature name
+                        # feature names, factor column, score column, colour
                         factor_text = row['Factor']
-                        
-                        # Factor column
                         pdf.cell(width_factor, 7, factor_text, 0, 0, 'L')
-                        
-                        # Score column 
                         pdf.set_font('Arial', 'B', 10)
                         pdf.cell(width_score, 7, str(row['Score']), 0, 0, 'C')
-                        
-                        # Category column with color coding
                         pdf.set_font('Arial', '', 10)
                         if row['Category'] == "Stress Contributor":
                             pdf.set_text_color(220, 53, 69)
@@ -1585,10 +1558,7 @@ elif page == "📝 Student Self-Test":
                         
                         pdf.cell(width_category, 7, row['Category'], 0, 1, 'L')
                         pdf.set_text_color(0, 0, 0)
-                        
-                        # Add consistent spacing between rows 
                         pdf.ln(3)
-                    
                     pdf.ln(6)
                     
                     # Summary statistics
@@ -1611,10 +1581,8 @@ elif page == "📝 Student Self-Test":
                     pdf.multi_cell(0, 4, "Note: Scores of 7-10 indicate high stress levels that increase overall stress. Scores of 0-3 indicate low stress levels that decrease overall stress. Scores of 4-6 have minimal impact.", 0, 'L')
 
                 pdf.ln(5)
-                # RECOMMENDATIONS SECTION
+                # Recommendations section explanation based on stress level
                 pdf.section_title("RECOMMENDATIONS")
-
-                # Add explanation based on stress level
                 if stress_level.lower() == "high":
                     pdf.add_explanation("Based on your responses, immediate action is recommended to address your stress levels. The following strategies can help you manage stress effectively:")
                     
@@ -1658,7 +1626,7 @@ elif page == "📝 Student Self-Test":
                     pdf.set_xy(15, pdf.get_y() + 2)
                     pdf.multi_cell(180, 4, "You are not alone - many students experience high stress. Seeking help is a sign of strength, not weakness. Take one step at a time.", 0, 1)
 
-                elif stress_level.lower() == "moderate":
+                elif stress_level.lower() == "moderate": 
                     pdf.add_explanation("Your responses indicate moderate stress levels. Implementing these recommendations can help prevent stress from escalating:")
                     
                     # 1. Daily Habits to Reduce Stress
@@ -1750,14 +1718,11 @@ elif page == "📝 Student Self-Test":
                 pdf.set_text_color(100, 100, 100)
                 pdf.multi_cell(0, 4, "Note: This report is generated by the XAI Stress Detection System using an AdaBoost machine learning model with SHAP explanations. It is intended for educational and self-awareness purposes only. For medical concerns, please consult a healthcare professional.", 0, 1)
 
-                # Save to bytes
                 pdf_output = pdf.output(dest='S').encode('latin1')
-
-                # Initialize counter in session state if it doesn't exist
                 if 'download_counter' not in st.session_state:
                     st.session_state.download_counter = 1
 
-                # Full width download button
+                # download button
                 st.download_button(
                     label="Download Results as PDF",
                     data=pdf_output,
@@ -1767,9 +1732,8 @@ elif page == "📝 Student Self-Test":
                     key="download_pdf_button"
                 )
 
-                # Increment counter after download
+                # Increment number after download
                 st.session_state.download_counter += 1
-
                 st.caption("Download your assessment results as a PDF report")
 
 # ==================================== PAGE 4: SHAP EXPLANATIONS ==================================================
@@ -1794,7 +1758,6 @@ elif page == "🔍 SHAP Explanations":
             """, unsafe_allow_html=True)
             
             if st.session_state.importance_df is not None:
-                # SHAP data from models folder
                 importance_df = st.session_state.importance_df.head(15)
                 
                 display_names = []
@@ -1804,7 +1767,7 @@ elif page == "🔍 SHAP Explanations":
 
                 importance_df['Display Name'] = display_names
                 
-                # Top Factor Card
+                # Top Factor 
                 top_feature = importance_df.iloc[0]['Display Name']
                 top_importance = importance_df.iloc[0]['Importance']
                 
@@ -1841,8 +1804,6 @@ elif page == "🔍 SHAP Explanations":
                 )
                 st.plotly_chart(fig_importance, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
-                
-                # How to read box
                 st.markdown("""
                 <div class="info-box">
                     <strong>📖 How to read this chart:</strong><br>
@@ -1864,11 +1825,10 @@ elif page == "🔍 SHAP Explanations":
             """, unsafe_allow_html=True)
             
             if st.session_state.importance_df is not None and (st.session_state.test_history or st.session_state.prediction_history):
-                # all model importance (exclude gender and age)
+                # all model importance exclude gender and age
                 model_imp = {}
                 for _, row in st.session_state.importance_df.iterrows():
                     clean = row['Feature'].split('.')[0] if '.' in row['Feature'] else row['Feature']
-                    # Skip gender and age
                     if 'gender' in clean.lower() or 'age' in clean.lower():
                         continue
                     model_imp[clean] = row['Importance']
@@ -1879,7 +1839,6 @@ elif page == "🔍 SHAP Explanations":
                 # Collect from self-tests
                 for test in st.session_state.test_history:
                     for feature, value in test['responses'].items():
-                        # Skip gender and age
                         if 'gender' in feature.lower() or 'age' in feature.lower():
                             continue
                         clean = feature.split('.')[0] if '.' in feature else feature
@@ -1914,7 +1873,7 @@ elif page == "🔍 SHAP Explanations":
                     
                     comp_df['Student Score (Normalised)'] = comp_df['Student Score'] / 10
                     
-                    # Sort by Student Score (highest to lowest) - use descending for proper display
+                    # Sort by Student Score (highest to lowest)
                     comp_df = comp_df.sort_values('Student Score', ascending=False)  
                     
                     # Create a horizontal grouped bar chart 
@@ -1922,7 +1881,7 @@ elif page == "🔍 SHAP Explanations":
                                         value_vars=['Global Importance (Normalised)', 'Student Score (Normalised)'],
                                         var_name='Source', value_name='Score')
                     
-                    # Replace source names for cleaner legend
+                    # Replace source names 
                     plot_df['Source'] = plot_df['Source'].replace({
                         'Global Importance (Normalised)': 'Global Importance',
                         'Student Score (Normalised)': 'Student Reports'
